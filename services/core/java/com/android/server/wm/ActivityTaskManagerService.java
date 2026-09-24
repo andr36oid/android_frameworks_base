@@ -314,8 +314,12 @@ public class ActivityTaskManagerService extends IActivityTaskManager.Stub {
     private static final String TAG_LOCKTASK = TAG + POSTFIX_LOCKTASK;
     private static final String TAG_CONFIGURATION = TAG + POSTFIX_CONFIGURATION;
 
+    // Scales all ANR timeouts. Slow, low-RAM devices need more headroom while apps
+    // are still starting up, otherwise they get flagged as hung while just loading.
+    public static final int ANR_TIMEOUT_MULTIPLIER =
+            Math.max(1, SystemProperties.getInt("ro.config.anr_timeout_multiplier", 1));
     // How long we wait until we timeout on key dispatching.
-    public static final int KEY_DISPATCHING_TIMEOUT_MS = 5 * 1000;
+    public static final int KEY_DISPATCHING_TIMEOUT_MS = 5 * 1000 * ANR_TIMEOUT_MULTIPLIER;
     // How long we wait until we timeout on key dispatching during instrumentation.
     static final int INSTRUMENTATION_KEY_DISPATCHING_TIMEOUT_MS = 60 * 1000;
     // How long we permit background activity starts after an activity in the process

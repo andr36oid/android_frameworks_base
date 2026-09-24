@@ -139,6 +139,7 @@ import static com.android.server.wm.ActivityTaskManagerService.DUMP_LASTANR_TRAC
 import static com.android.server.wm.ActivityTaskManagerService.DUMP_RECENTS_CMD;
 import static com.android.server.wm.ActivityTaskManagerService.DUMP_RECENTS_SHORT_CMD;
 import static com.android.server.wm.ActivityTaskManagerService.DUMP_STARTER_CMD;
+import static com.android.server.wm.ActivityTaskManagerService.ANR_TIMEOUT_MULTIPLIER;
 import static com.android.server.wm.ActivityTaskManagerService.KEY_DISPATCHING_TIMEOUT_MS;
 import static com.android.server.wm.ActivityTaskManagerService.RELAUNCH_REASON_NONE;
 import static com.android.server.wm.ActivityTaskManagerService.relaunchReasonToString;
@@ -488,8 +489,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     static final int PROC_START_TIMEOUT_WITH_WRAPPER = 1200*1000;
 
     // How long we allow a receiver to run before giving up on it.
-    static final int BROADCAST_FG_TIMEOUT = 10*1000;
-    static final int BROADCAST_BG_TIMEOUT = 60*1000;
+    static final int BROADCAST_FG_TIMEOUT = 10*1000 * ANR_TIMEOUT_MULTIPLIER;
+    static final int BROADCAST_BG_TIMEOUT = 60*1000 * ANR_TIMEOUT_MULTIPLIER;
 
     public static final int MY_PID = myPid();
 
@@ -5210,7 +5211,8 @@ public class ActivityManagerService extends IActivityManager.Stub
             Message msg = mHandler.obtainMessage(CONTENT_PROVIDER_PUBLISH_TIMEOUT_MSG);
             msg.obj = app;
             mHandler.sendMessageDelayed(msg,
-                    ContentResolver.CONTENT_PROVIDER_PUBLISH_TIMEOUT_MILLIS);
+                    ContentResolver.CONTENT_PROVIDER_PUBLISH_TIMEOUT_MILLIS
+                            * ANR_TIMEOUT_MULTIPLIER);
         }
 
         checkTime(startTime, "attachApplicationLocked: before bindApplication");

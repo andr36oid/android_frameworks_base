@@ -36,6 +36,7 @@ import static com.android.server.am.ActivityManagerDebugConfig.POSTFIX_SERVICE;
 import static com.android.server.am.ActivityManagerDebugConfig.POSTFIX_SERVICE_EXECUTING;
 import static com.android.server.am.ActivityManagerDebugConfig.TAG_AM;
 import static com.android.server.am.ActivityManagerDebugConfig.TAG_WITH_CLASS_NAME;
+import static com.android.server.wm.ActivityTaskManagerService.ANR_TIMEOUT_MULTIPLIER;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -141,7 +142,7 @@ public final class ActiveServices {
     private static final int DEBUG_FGS_ENFORCE_TYPE = 1;
 
     // How long we wait for a service to finish executing.
-    static final int SERVICE_TIMEOUT = 20*1000;
+    static final int SERVICE_TIMEOUT = 20*1000 * ANR_TIMEOUT_MULTIPLIER;
 
     // How long we wait for a service to finish executing.
     static final int SERVICE_BACKGROUND_TIMEOUT = SERVICE_TIMEOUT * 10;

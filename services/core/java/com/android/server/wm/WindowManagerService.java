@@ -369,7 +369,8 @@ public class WindowManagerService extends IWindowManager.Stub
     private static final int INPUT_DEVICES_READY_FOR_SAFE_MODE_DETECTION_TIMEOUT_MILLIS = 1000;
 
     // Default input dispatching timeout in nanoseconds.
-    static final long DEFAULT_INPUT_DISPATCHING_TIMEOUT_NANOS = 5000 * 1000000L;
+    static final long DEFAULT_INPUT_DISPATCHING_TIMEOUT_NANOS =
+            ActivityTaskManagerService.KEY_DISPATCHING_TIMEOUT_MS * 1000000L;
 
     // Poll interval in milliseconds for watching boot animation finished.
     // TODO(b/159045990) Migrate to SystemService.waitForState with dedicated thread.
