@@ -16,6 +16,8 @@
 
 package com.android.systemui.globalactions;
 
+import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
+import static android.app.WindowConfiguration.ACTIVITY_TYPE_RECENTS;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
 import static android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
@@ -37,13 +39,17 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.annotation.Nullable;
 import android.app.ActivityManager;
+import android.app.ActivityTaskManager;
 import android.app.Dialog;
 import android.app.IActivityManager;
+import android.app.IActivityTaskManager;
 import android.app.PendingIntent;
 import android.app.StatusBarManager;
+import android.app.TaskInfo;
 import android.app.WallpaperManager;
 import android.app.admin.DevicePolicyManager;
 import android.app.trust.TrustManager;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentResolver;
@@ -52,6 +58,9 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.pm.UserInfo;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -83,6 +92,7 @@ import android.service.dreams.IDreamManager;
 import android.sysprop.TelephonyProperties;
 import android.telecom.TelecomManager;
 import android.telephony.TelephonyManager;
+import android.text.TextUtils;
 import android.transition.AutoTransition;
 import android.transition.TransitionManager;
 import android.transition.TransitionSet;
@@ -105,6 +115,7 @@ import android.widget.ImageView.ScaleType;
 import android.widget.LinearLayout;
 import android.widget.ListPopupWindow;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.Lifecycle;
@@ -144,7 +155,10 @@ import com.android.systemui.model.SysUiState;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.plugins.GlobalActions.GlobalActionsManager;
 import com.android.systemui.plugins.GlobalActionsPanelPlugin;
+import com.android.systemui.recents.OverviewProxyService;
 import com.android.systemui.settings.CurrentUserContextTracker;
+import com.android.systemui.shared.system.ActivityManagerWrapper;
+import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.NotificationShadeDepthController;
 import com.android.systemui.statusbar.phone.NotificationShadeWindowController;
 import com.android.systemui.statusbar.policy.ConfigurationController;
@@ -156,6 +170,7 @@ import com.android.systemui.util.leak.RotationUtils;
 
 import lineageos.app.LineageGlobalActions;
 import lineageos.providers.LineageSettings;
+import org.lineageos.internal.lineageparts.PartsList;
 import org.lineageos.internal.util.PowerMenuUtils;
 
 import java.util.ArrayList;
@@ -194,6 +209,9 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
     private static final String RESTART_ACTION_KEY_RESTART_BOOTLOADER = "restart_bootloader";
     private static final String RESTART_ACTION_KEY_RESTART_DOWNLOAD = "restart_download";
     private static final String RESTART_ACTION_KEY_RESTART_FASTBOOT = "restart_fastboot";
+
+    // Most recent apps listed by the built-in app switcher
+    private static final int APP_SWITCHER_MAX_APPS = 12;
 
     public static final String PREFS_CONTROLS_SEEDING_COMPLETED = "SeedingCompleted";
     public static final String PREFS_CONTROLS_FILE = "controls_prefs";
@@ -588,7 +606,9 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
      */
     @VisibleForTesting
     protected int getMaxShownPowerItems() {
-        return mResources.getInteger(com.android.systemui.R.integer.power_menu_max_columns);
+        // GlobalActionsConsoleLayout wraps the actions into as many rows as it needs, so
+        // nothing goes to the overflow menu and power/restart never get folded together
+        return Integer.MAX_VALUE;
     }
 
     /**
@@ -617,6 +637,34 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
     private void addIfShouldShowAction(List<Action> actions, Action action) {
         if (shouldShowAction(action)) {
             actions.add(action);
+        }
+    }
+
+    /**
+     * Adds a tile for every app pinned from the power menu settings.
+     */
+    private void addPinnedApps(List<Action> actions) {
+        final String pinned = Settings.Secure.getStringForUser(mContentResolver,
+                POWER_MENU_PINNED_APPS, UserHandle.USER_CURRENT);
+        if (TextUtils.isEmpty(pinned)) {
+            return;
+        }
+        final PackageManager pm =
+                mCurrentUserContextTracker.getCurrentUserContext().getPackageManager();
+        final ArraySet<String> added = new ArraySet<>();
+        for (String packageName : pinned.split("\\|")) {
+            if (!added.add(packageName)) {
+                continue;
+            }
+            final Intent intent = pm.getLaunchIntentForPackage(packageName);
+            final ResolveInfo info = intent != null ? pm.resolveActivity(intent, 0) : null;
+            if (info == null) {
+                // Uninstalled or disabled since it was pinned
+                continue;
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            addIfShouldShowAction(actions,
+                    new PinnedAppAction(intent, info.loadLabel(pm), info.loadIcon(pm)));
         }
     }
 
@@ -702,12 +750,23 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
                 }
             } else if (GLOBAL_ACTION_KEY_EMERGENCY.equals(actionKey)) {
                 addIfShouldShowAction(tempActions, new EmergencyDialerAction());
+            } else if (GLOBAL_ACTION_KEY_HOME.equals(actionKey)) {
+                addIfShouldShowAction(tempActions, new HomeAction());
+            } else if (GLOBAL_ACTION_KEY_APP_SWITCHER.equals(actionKey)) {
+                // Without system recents, only offer the switcher if there's an app to switch to
+                if (isSystemRecentsAvailable() || !getRecentApps(1).isEmpty()) {
+                    addIfShouldShowAction(tempActions, new AppSwitcherAction());
+                }
+            } else if (GLOBAL_ACTION_KEY_CLOSE_APPS.equals(actionKey)) {
+                addIfShouldShowAction(tempActions, new CloseAppsAction());
             } else {
                 Log.e(TAG, "Invalid global action key " + actionKey);
             }
             // Add here so we don't add more than one.
             addedKeys.add(actionKey);
         }
+
+        addPinnedApps(tempActions);
 
         for (int i = 0; i < restartActions.length; i++) {
             String actionKey = restartActions[i];
@@ -1311,26 +1370,342 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
     }
 
     private Action getSettingsAction() {
-        return new SinglePressAction(R.drawable.ic_settings,
-                R.string.global_action_settings) {
+        return new SettingsAction();
+    }
 
-            @Override
-            public void onPress() {
-                Intent intent = new Intent(Settings.ACTION_SETTINGS);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                mContext.startActivity(intent);
-            }
+    private final class SettingsAction extends SinglePressAction implements LongPressAction {
+        private SettingsAction() {
+            super(R.drawable.ic_settings, R.string.global_action_settings);
+        }
 
-            @Override
-            public boolean showDuringKeyguard() {
-                return true;
-            }
+        @Override
+        public void onPress() {
+            Intent intent = new Intent(Settings.ACTION_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            mContext.startActivity(intent);
+        }
 
-            @Override
-            public boolean showBeforeProvisioning() {
-                return true;
+        @Override
+        public boolean onLongPress() {
+            // Straight to the power menu customization in LineageParts
+            Intent intent = new Intent(PartsList.PARTS_ACTION_PREFIX + ".power_menu");
+            intent.setComponent(PartsList.LINEAGEPARTS_ACTIVITY);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            try {
+                mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+            } catch (ActivityNotFoundException e) {
+                Log.w(TAG, "No power menu settings to open", e);
             }
-        };
+            return true;
+        }
+
+        @Override
+        public boolean showDuringKeyguard() {
+            return true;
+        }
+
+        @Override
+        public boolean showBeforeProvisioning() {
+            return true;
+        }
+    }
+
+    /**
+     * Base for the actions grouped in the first section of the power menu.
+     */
+    private abstract class QuickAction extends SinglePressAction {
+        QuickAction(int iconResId, int messageResId) {
+            super(iconResId, messageResId);
+        }
+
+        @Override
+        public int getSection() {
+            return GlobalActionsConsoleLayout.SECTION_QUICK;
+        }
+
+        @Override
+        public boolean showDuringKeyguard() {
+            return false;
+        }
+
+        @Override
+        public boolean showBeforeProvisioning() {
+            return false;
+        }
+    }
+
+    private final class HomeAction extends QuickAction {
+        private HomeAction() {
+            super(com.android.systemui.R.drawable.ic_global_actions_home,
+                    com.android.systemui.R.string.global_action_home);
+        }
+
+        @Override
+        public void onPress() {
+            // What the home key does: close system dialogs, then start the home intent
+            ActivityManagerWrapper.getInstance().closeSystemWindows(
+                    ActivityManagerWrapper.CLOSE_SYSTEM_WINDOWS_REASON_HOME_KEY);
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_HOME);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+        }
+    }
+
+    private final class AppSwitcherAction extends QuickAction {
+        private AppSwitcherAction() {
+            super(com.android.systemui.R.drawable.ic_global_actions_app_switcher,
+                    com.android.systemui.R.string.global_action_app_switcher);
+        }
+
+        @Override
+        public void onPress() {
+            if (isSystemRecentsAvailable()) {
+                // Same path as the recent apps key
+                Dependency.get(CommandQueue.class).toggleRecentApps();
+                return;
+            }
+            if (mDialog == null) {
+                return;
+            }
+            final List<Action> apps = getRecentApps(APP_SWITCHER_MAX_APPS);
+            if (apps.isEmpty()) {
+                Toast.makeText(mContext,
+                        com.android.systemui.R.string.global_action_app_switcher_empty,
+                        Toast.LENGTH_SHORT).show();
+            } else {
+                mDialog.showAppSwitcher(new MyAppSwitcherAdapter(apps));
+            }
+        }
+    }
+
+    private final class CloseAppsAction extends QuickAction {
+        private CloseAppsAction() {
+            super(com.android.systemui.R.drawable.ic_global_actions_close_apps,
+                    com.android.systemui.R.string.global_action_close_apps);
+        }
+
+        @Override
+        public void onPress() {
+            mBackgroundExecutor.execute(() -> {
+                final int closed = closeBackgroundApps();
+                mMainHandler.post(() -> Toast.makeText(mContext, closed > 0
+                        ? mResources.getQuantityString(
+                                com.android.systemui.R.plurals.global_action_close_apps_done,
+                                closed, closed)
+                        : mResources.getString(
+                                com.android.systemui.R.string.global_action_close_apps_none),
+                        Toast.LENGTH_SHORT).show());
+            });
+        }
+    }
+
+    /**
+     * Base for tiles that show an app with its own icon, in the apps section.
+     */
+    private abstract class AppAction extends SinglePressAction {
+        AppAction(CharSequence label, Drawable icon) {
+            super(R.drawable.sym_def_app_icon, icon, label);
+        }
+
+        @Override
+        protected int getLayoutResId() {
+            return com.android.systemui.R.layout.global_actions_console_app_item;
+        }
+
+        @Override
+        public int getSection() {
+            return GlobalActionsConsoleLayout.SECTION_APPS;
+        }
+
+        @Override
+        public boolean showDuringKeyguard() {
+            return false;
+        }
+
+        @Override
+        public boolean showBeforeProvisioning() {
+            return false;
+        }
+    }
+
+    private final class PinnedAppAction extends AppAction {
+        private final Intent mIntent;
+
+        private PinnedAppAction(Intent intent, CharSequence label, Drawable icon) {
+            super(label, icon);
+            mIntent = intent;
+        }
+
+        @Override
+        public void onPress() {
+            try {
+                mContext.startActivityAsUser(mIntent, UserHandle.CURRENT);
+            } catch (ActivityNotFoundException e) {
+                Log.w(TAG, "Pinned app is gone: " + mIntent, e);
+            }
+        }
+    }
+
+    private final class RecentAppAction extends AppAction {
+        private final int mTaskId;
+
+        private RecentAppAction(int taskId, CharSequence label, Drawable icon) {
+            super(label, icon);
+            mTaskId = taskId;
+        }
+
+        @Override
+        public void onPress() {
+            ActivityManagerWrapper.getInstance().startActivityFromRecents(mTaskId, null);
+        }
+    }
+
+    /**
+     * Whether a recents provider, the overview of a quickstep launcher, is connected. Without
+     * one the app switcher action opens the power menu's own app switcher instead.
+     */
+    private boolean isSystemRecentsAvailable() {
+        return Dependency.get(OverviewProxyService.class).getProxy() != null;
+    }
+
+    /**
+     * Recent tasks of the current user for the built-in app switcher, most recent first and
+     * without the ones on screen.
+     */
+    private List<Action> getRecentApps(int max) {
+        final List<Action> apps = new ArrayList<>();
+        final IActivityTaskManager atm = ActivityTaskManager.getService();
+        final PackageManager pm =
+                mCurrentUserContextTracker.getCurrentUserContext().getPackageManager();
+        try {
+            final ArraySet<Integer> onScreen = getOnScreenTaskIds(atm);
+            final List<ActivityManager.RecentTaskInfo> tasks = atm.getRecentTasks(
+                    Integer.MAX_VALUE, ActivityManager.RECENT_IGNORE_UNAVAILABLE,
+                    ActivityManager.getCurrentUser()).getList();
+            for (ActivityManager.RecentTaskInfo task : tasks) {
+                if (apps.size() >= max) {
+                    break;
+                }
+                final ComponentName component = getTaskComponent(task);
+                if (component == null || onScreen.contains(task.taskId)
+                        || isHomeOrRecentsTask(task)) {
+                    continue;
+                }
+                try {
+                    final ActivityInfo info = pm.getActivityInfo(component, 0);
+                    apps.add(new RecentAppAction(task.taskId, info.loadLabel(pm),
+                            info.loadIcon(pm)));
+                } catch (PackageManager.NameNotFoundException e) {
+                    // Uninstalled since it was used
+                }
+            }
+        } catch (RemoteException e) {
+            Log.w(TAG, "Failed to get recent tasks", e);
+        }
+        return apps;
+    }
+
+    /**
+     * Closes all apps of the current user except the ones on screen, the same way swiping
+     * them away from recents does: their tasks are removed and their processes killed, unless
+     * they still run a foreground service. Makes blocking binder calls, keep it off the main
+     * thread.
+     *
+     * @return the number of apps closed
+     */
+    private int closeBackgroundApps() {
+        final IActivityTaskManager atm = ActivityTaskManager.getService();
+        final int userId = ActivityManager.getCurrentUser();
+        final ArraySet<Integer> onScreen;
+        final List<TaskInfo> tasks = new ArrayList<>();
+        try {
+            onScreen = getOnScreenTaskIds(atm);
+            // Running tasks as well, for apps that keep themselves out of recents
+            tasks.addAll(atm.getFilteredTasks(Integer.MAX_VALUE,
+                    false /* filterOnlyVisibleRecents */));
+            tasks.addAll(atm.getRecentTasks(Integer.MAX_VALUE,
+                    ActivityManager.RECENT_IGNORE_UNAVAILABLE, userId).getList());
+        } catch (RemoteException e) {
+            Log.w(TAG, "Failed to get tasks", e);
+            return 0;
+        }
+
+        final ArraySet<Integer> userIds = new ArraySet<>();
+        for (int id : mUserManager.getEnabledProfileIds(userId)) {
+            userIds.add(id);
+        }
+
+        // Apps on screen are left alone entirely, and so are the system and SystemUI
+        final ArraySet<String> keep = new ArraySet<>();
+        keep.add("android");
+        keep.add(mContext.getPackageName());
+        for (TaskInfo task : tasks) {
+            if (onScreen.contains(task.taskId)) {
+                addPackage(keep, getTaskComponent(task));
+                addPackage(keep, task.topActivity);
+            }
+        }
+
+        final ArraySet<Integer> seen = new ArraySet<>();
+        final ArraySet<String> closed = new ArraySet<>();
+        for (TaskInfo task : tasks) {
+            if (!seen.add(task.taskId) || !userIds.contains(task.userId)
+                    || isHomeOrRecentsTask(task)) {
+                continue;
+            }
+            final ComponentName component = getTaskComponent(task);
+            if (component == null || keep.contains(component.getPackageName())) {
+                continue;
+            }
+            try {
+                if (atm.removeTask(task.taskId)) {
+                    closed.add(component.getPackageName());
+                }
+            } catch (RemoteException e) {
+                Log.w(TAG, "Failed to remove task " + task.taskId, e);
+            }
+        }
+        return closed.size();
+    }
+
+    /**
+     * Top task of every visible stack, i.e. what is on screen.
+     */
+    private static ArraySet<Integer> getOnScreenTaskIds(IActivityTaskManager atm)
+            throws RemoteException {
+        final ArraySet<Integer> taskIds = new ArraySet<>();
+        for (ActivityManager.StackInfo stack : atm.getAllStackInfos()) {
+            if (stack.visible && stack.taskIds != null && stack.taskIds.length > 0) {
+                // Task ids are ordered bottom to top
+                taskIds.add(stack.taskIds[stack.taskIds.length - 1]);
+            }
+        }
+        return taskIds;
+    }
+
+    @Nullable
+    private static ComponentName getTaskComponent(TaskInfo task) {
+        if (task.baseActivity != null) {
+            return task.baseActivity;
+        }
+        if (task.realActivity != null) {
+            return task.realActivity;
+        }
+        return task.baseIntent != null ? task.baseIntent.getComponent() : null;
+    }
+
+    private static boolean isHomeOrRecentsTask(TaskInfo task) {
+        final int type = task.configuration.windowConfiguration.getActivityType();
+        return type == ACTIVITY_TYPE_HOME || type == ACTIVITY_TYPE_RECENTS;
+    }
+
+    private static void addPackage(ArraySet<String> packages,
+            @Nullable ComponentName component) {
+        if (component != null) {
+            packages.add(component.getPackageName());
+        }
     }
 
     private Action getAssistAction() {
@@ -1555,7 +1930,8 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
     /**
      * The adapter used for power menu items shown in the global actions dialog.
      */
-    public class MyAdapter extends MultiListAdapter {
+    public class MyAdapter extends MultiListAdapter
+            implements GlobalActionsConsoleLayout.SectionAdapter {
         private int countItems(boolean separated) {
             int count = 0;
             for (int i = 0; i < mItems.size(); i++) {
@@ -1650,9 +2026,11 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             if (!(item instanceof SilentModeTriStateAction)) {
                 if (mDialog != null) {
                     // don't dismiss the dialog if we're opening the power/restart options menu
+                    // or the built-in app switcher
                     if (!(item instanceof PowerOptionsAction ||
                             (item instanceof RestartAction && shouldShowRestartSubmenu()) ||
-                            (item instanceof UsersAction))) {
+                            (item instanceof UsersAction) ||
+                            (item instanceof AppSwitcherAction && !isSystemRecentsAvailable()))) {
                         mDialog.dismiss();
                     }
                 } else {
@@ -1665,6 +2043,91 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         @Override
         public boolean shouldBeSeparated(int position) {
             return getItem(position).shouldBeSeparated();
+        }
+
+        @Override
+        public int getSection(int position) {
+            return getItem(position).getSection();
+        }
+
+        @Override
+        public CharSequence getSectionTitle(int section) {
+            return null;
+        }
+    }
+
+    /**
+     * The adapter used for the built-in app switcher page.
+     */
+    public class MyAppSwitcherAdapter extends MultiListAdapter
+            implements GlobalActionsConsoleLayout.SectionAdapter {
+        private final List<Action> mApps;
+
+        private MyAppSwitcherAdapter(List<Action> apps) {
+            mApps = apps;
+        }
+
+        @Override
+        public int countSeparatedItems() {
+            return 0;
+        }
+
+        @Override
+        public int countListItems() {
+            return mApps.size();
+        }
+
+        @Override
+        public int getCount() {
+            return mApps.size();
+        }
+
+        @Override
+        public Action getItem(int position) {
+            return mApps.get(position);
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            Action action = getItem(position);
+            View view = action.create(mContext, convertView, parent, LayoutInflater.from(mContext));
+            view.setOnClickListener(v -> onClickItem(position));
+            return view;
+        }
+
+        @Override
+        public void onClickItem(int position) {
+            if (mDialog != null) {
+                mDialog.dismiss();
+            } else {
+                Log.w(TAG, "Action clicked while mDialog is null.");
+            }
+            getItem(position).onPress();
+        }
+
+        @Override
+        public boolean onLongClickItem(int position) {
+            return false;
+        }
+
+        @Override
+        public boolean shouldBeSeparated(int position) {
+            return false;
+        }
+
+        @Override
+        public int getSection(int position) {
+            return GlobalActionsConsoleLayout.SECTION_APPS;
+        }
+
+        @Override
+        public CharSequence getSectionTitle(int section) {
+            return mContext.getString(com.android.systemui.R.string.global_action_app_switcher);
         }
     }
 
@@ -1914,6 +2377,13 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         }
 
         /**
+         * Return the section of GlobalActionsConsoleLayout this action goes to.
+         */
+        default int getSection() {
+            return GlobalActionsConsoleLayout.SECTION_ACTIONS;
+        }
+
+        /**
          * Return the id of the message associated with this action, or 0 if it doesn't have one.
          * @return
          */
@@ -2006,10 +2476,16 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             }
         }
 
+        /**
+         * Return the layout of this action's tile.
+         */
+        protected int getLayoutResId() {
+            return com.android.systemui.R.layout.global_actions_console_item;
+        }
+
         public View create(
                 Context context, View convertView, ViewGroup parent, LayoutInflater inflater) {
-            View v = inflater.inflate(com.android.systemui.R.layout.global_actions_grid_item_v2,
-                    parent, false /* attach */);
+            View v = inflater.inflate(getLayoutResId(), parent, false /* attach */);
 
             ImageView icon = v.findViewById(R.id.icon);
             TextView messageView = v.findViewById(R.id.message);
@@ -2117,7 +2593,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
                 LayoutInflater inflater) {
             willCreate();
 
-            View v = inflater.inflate(com.android.systemui.R.layout.global_actions_grid_item_v2,
+            View v = inflater.inflate(com.android.systemui.R.layout.global_actions_console_item,
                     parent, false /* attach */);
 
             ImageView icon = (ImageView) v.findViewById(R.id.icon);
@@ -2479,6 +2955,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         private Dialog mPowerOptionsDialog;
         private Dialog mRestartOptionsDialog;
         private Dialog mUsersDialog;
+        private MultiListAdapter mAppSwitcherAdapter;
         private final Runnable mOnRotateCallback;
         private final boolean mControlsAvailable;
 
@@ -2660,8 +3137,42 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             mUsersDialog.show();
         }
 
+        /**
+         * Swaps the actions for the built-in app switcher, back goes back to the actions.
+         */
+        void showAppSwitcher(MultiListAdapter adapter) {
+            mAppSwitcherAdapter = adapter;
+            mGlobalActionsLayout.setAdapter(adapter);
+            mGlobalActionsLayout.updateList();
+        }
+
+        private boolean hideAppSwitcher() {
+            if (mAppSwitcherAdapter == null) {
+                return false;
+            }
+            mAppSwitcherAdapter = null;
+            mGlobalActionsLayout.setAdapter(mAdapter);
+            mGlobalActionsLayout.updateList();
+            // Put the focus back on the app switcher tile
+            for (int i = 0; i < mAdapter.getCount(); i++) {
+                if (mAdapter.getItem(i) instanceof AppSwitcherAction) {
+                    ((GlobalActionsConsoleLayout) mGlobalActionsLayout).focusItem(i);
+                    break;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public void onBackPressed() {
+            if (!hideAppSwitcher()) {
+                super.onBackPressed();
+            }
+        }
+
         private void initializeLayout() {
-            setContentView(com.android.systemui.R.layout.global_actions_grid_v2);
+            mAppSwitcherAdapter = null;
+            setContentView(com.android.systemui.R.layout.global_actions_console);
             fixNavBarClipping();
             mControlsView = findViewById(com.android.systemui.R.id.global_actions_controls);
             mGlobalActionsLayout = findViewById(com.android.systemui.R.id.global_actions_view);

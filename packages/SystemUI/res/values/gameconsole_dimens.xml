@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The andr36oid Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<resources>
+    <!-- Console power menu. The block of tiles never gets wider than this. -->
+    <dimen name="global_actions_console_max_width">640dp</dimen>
+    <dimen name="global_actions_console_side_margin">24dp</dimen>
+    <!-- Extra space between two sections, on top of the tile margins -->
+    <dimen name="global_actions_console_section_spacing">12dp</dimen>
+
+    <dimen name="global_actions_console_item_margin">4dp</dimen>
+    <dimen name="global_actions_console_item_height">96dp</dimen>
+    <dimen name="global_actions_console_item_padding">8dp</dimen>
+
+    <dimen name="global_actions_console_icon_size">28dp</dimen>
+    <dimen name="global_actions_console_label_margin">10dp</dimen>
+    <dimen name="global_actions_console_app_icon_size">40dp</dimen>
+    <dimen name="global_actions_console_app_label_margin">6dp</dimen>
+    <dimen name="global_actions_console_label_size">15sp</dimen>
+    <dimen name="global_actions_console_title_size">16sp</dimen>
+
+    <!-- D-pad focus highlight -->
+    <dimen name="global_actions_console_focus_stroke">3dp</dimen>
+    <dimen name="global_actions_console_focus_elevation">4dp</dimen>
+</resources>
