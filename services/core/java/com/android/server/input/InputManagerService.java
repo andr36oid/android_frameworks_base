@@ -67,6 +67,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Slog;
 import android.util.SparseArray;
+import android.util.SparseBooleanArray;
 import android.view.Display;
 import android.view.IInputFilter;
 import android.view.IInputFilterHost;
@@ -137,6 +138,7 @@ public class InputManagerService extends IInputManager.Stub
     private static final int MSG_UPDATE_KEYBOARD_LAYOUTS = 4;
     private static final int MSG_RELOAD_DEVICE_ALIASES = 5;
     private static final int MSG_DELIVER_TABLET_MODE_CHANGED = 6;
+    private static final int MSG_RESET_HARDWARE_BUTTON_REMAP = 7;
 
     // Pointer to native input manager service object.
     private final long mPtr;
@@ -177,6 +179,12 @@ public class InputManagerService extends IInputManager.Stub
             mTempFullKeyboards = new ArrayList<InputDevice>(); // handler thread only
     private boolean mKeyboardLayoutNotificationShown;
     private Toast mSwitchedKeyboardLayoutToast;
+
+    // Remapping of the hardware buttons on built-in input devices.
+    private volatile HardwareButtonRemap mHardwareButtonRemap = HardwareButtonRemap.EMPTY;
+    // Both built-in volume keys held down, see interceptHardwareButtonResetChord().
+    private boolean mResetChordVolumeDown; // input reader thread only
+    private boolean mResetChordVolumeUp; // input reader thread only
 
     // State for vibrator tokens.
     private Object mVibratorLock = new Object();
@@ -364,6 +372,7 @@ public class InputManagerService extends IInputManager.Stub
         registerAccessibilityLargePointerSettingObserver();
         registerLongPressTimeoutObserver();
         registerVolumeKeysRotationSettingObserver();
+        registerHardwareButtonRemapSettingObserver();
 
         mContext.registerReceiver(new BroadcastReceiver() {
             @Override
@@ -381,6 +390,7 @@ public class InputManagerService extends IInputManager.Stub
         updateAccessibilityLargePointerFromSettings();
         updateDeepPressStatusFromSettings("just booted");
         updateVolumeKeysRotationFromSettings();
+        updateHardwareButtonRemapFromSettings();
     }
 
     // TODO(BT) Pass in parameter for bluetooth system
@@ -799,6 +809,7 @@ public class InputManagerService extends IInputManager.Stub
     private void deliverInputDevicesChanged(InputDevice[] oldInputDevices) {
         // Scan for changes.
         int numFullKeyboardsAdded = 0;
+        boolean builtInDeviceAdded = false;
         mTempInputDevicesChangedListenersToNotify.clear();
         mTempFullKeyboards.clear();
         final int numListeners;
@@ -830,7 +841,19 @@ public class InputManagerService extends IInputManager.Stub
                         mTempFullKeyboards.add(inputDevice);
                     }
                 }
+
+                if (!inputDevice.isVirtual() && !inputDevice.isExternal()
+                        && !containsInputDeviceWithDescriptor(oldInputDevices,
+                                inputDevice.getDescriptor())) {
+                    builtInDeviceAdded = true;
+                }
             }
+        }
+
+        // The hardware button remap overlay is only served to devices we already know are
+        // built-in, so refresh it once a new built-in device shows up.
+        if (builtInDeviceAdded && mSystemReady && mHardwareButtonRemap.overlay != null) {
+            reloadKeyboardLayouts();
         }
 
         // Notify listeners.
@@ -1744,6 +1767,80 @@ public class InputManagerService extends IInputManager.Stub
         return result;
     }
 
+    private void updateHardwareButtonRemapFromSettings() {
+        mHardwareButtonRemap = HardwareButtonRemap.parse(Settings.Global.getString(
+                mContext.getContentResolver(), HardwareButtonRemap.SETTING));
+    }
+
+    private void registerHardwareButtonRemapSettingObserver() {
+        mContext.getContentResolver().registerContentObserver(
+                Settings.Global.getUriFor(HardwareButtonRemap.SETTING), false,
+                new ContentObserver(mHandler) {
+                    @Override
+                    public void onChange(boolean selfChange) {
+                        updateHardwareButtonRemapFromSettings();
+                        reloadKeyboardLayouts();
+                    }
+                });
+    }
+
+    private static boolean isBuiltInInputDevice(InputDevice inputDevice) {
+        return inputDevice != null && !inputDevice.isVirtual() && !inputDevice.isExternal();
+    }
+
+    private boolean isBuiltInInputDevice(String descriptor) {
+        synchronized (mInputDevicesLock) {
+            final int count = mInputDevices.length;
+            for (int i = 0; i < count; i++) {
+                final InputDevice inputDevice = mInputDevices[i];
+                if (inputDevice.getDescriptor().equals(descriptor)) {
+                    return isBuiltInInputDevice(inputDevice);
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isHardwareButtonDisabled(KeyEvent event) {
+        return mHardwareButtonRemap.disabled.get(event.getScanCode())
+                && isBuiltInInputDevice(getInputDevice(event.getDeviceId()));
+    }
+
+    // Holding both built-in volume keys resets the hardware button remap, so a layout that locks
+    // the user out can always be undone. It goes by scan code, whatever the keys are mapped to.
+    private void interceptHardwareButtonResetChord(KeyEvent event) {
+        final int scanCode = event.getScanCode();
+        if ((scanCode != HardwareButtonRemap.KEY_VOLUMEDOWN
+                && scanCode != HardwareButtonRemap.KEY_VOLUMEUP)
+                || !isBuiltInInputDevice(getInputDevice(event.getDeviceId()))) {
+            return;
+        }
+        final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+        if (scanCode == HardwareButtonRemap.KEY_VOLUMEDOWN) {
+            mResetChordVolumeDown = down;
+        } else {
+            mResetChordVolumeUp = down;
+        }
+        if (mResetChordVolumeDown && mResetChordVolumeUp) {
+            if (!mHandler.hasMessages(MSG_RESET_HARDWARE_BUTTON_REMAP)) {
+                mHandler.sendEmptyMessageDelayed(MSG_RESET_HARDWARE_BUTTON_REMAP,
+                        HardwareButtonRemap.RESET_CHORD_TIMEOUT_MS);
+            }
+        } else {
+            mHandler.removeMessages(MSG_RESET_HARDWARE_BUTTON_REMAP);
+        }
+    }
+
+    private void resetHardwareButtonRemap() {
+        if (mHardwareButtonRemap.setting.isEmpty()) {
+            return;
+        }
+        Slog.i(TAG, "Resetting the hardware button remap.");
+        Settings.Global.putString(mContext.getContentResolver(), HardwareButtonRemap.SETTING,
+                null);
+        Toast.makeText(mContext, "All buttons are back to normal", Toast.LENGTH_LONG).show();
+    }
+
     // Binder call
     @Override
     public void vibrate(int deviceId, long[] pattern, int repeat, IBinder token) {
@@ -1868,6 +1965,11 @@ public class InputManagerService extends IInputManager.Stub
         if (dumpStr != null) {
             pw.println(dumpStr);
             dumpAssociations(pw);
+        }
+
+        final HardwareButtonRemap remap = mHardwareButtonRemap;
+        if (!remap.setting.isEmpty()) {
+            pw.println("Hardware Button Remap: " + remap.setting);
         }
     }
 
@@ -2011,6 +2113,10 @@ public class InputManagerService extends IInputManager.Stub
 
     // Native callback.
     private int interceptKeyBeforeQueueing(KeyEvent event, int policyFlags) {
+        interceptHardwareButtonResetChord(event);
+        if (isHardwareButtonDisabled(event)) {
+            return 0;
+        }
         return mWindowManagerCallbacks.interceptKeyBeforeQueueing(event, policyFlags);
     }
 
@@ -2196,6 +2302,19 @@ public class InputManagerService extends IInputManager.Stub
             return null;
         }
 
+        final String[] result = getSelectedKeyboardLayoutOverlay(identifier);
+        final String remap = mHardwareButtonRemap.overlay;
+        if (remap == null || !isBuiltInInputDevice(identifier.getDescriptor())) {
+            return result;
+        }
+        if (result == null || result[1] == null) {
+            return new String[] { HardwareButtonRemap.SETTING, "type OVERLAY\n" + remap };
+        }
+        result[1] = result[1] + "\n" + remap;
+        return result;
+    }
+
+    private String[] getSelectedKeyboardLayoutOverlay(InputDeviceIdentifier identifier) {
         String keyboardLayoutDescriptor = getCurrentKeyboardLayoutForInputDevice(identifier);
         if (keyboardLayoutDescriptor == null) {
             return null;
@@ -2334,6 +2453,9 @@ public class InputManagerService extends IInputManager.Stub
                     boolean inTabletMode = (boolean) args.arg1;
                     deliverTabletModeChanged(whenNanos, inTabletMode);
                     break;
+                case MSG_RESET_HARDWARE_BUTTON_REMAP:
+                    resetHardwareButtonRemap();
+                    break;
             }
         }
     }
@@ -2417,6 +2539,94 @@ public class InputManagerService extends IInputManager.Stub
     private interface KeyboardLayoutVisitor {
         void visitKeyboardLayout(Resources resources,
                 int keyboardLayoutResId, KeyboardLayout layout);
+    }
+
+    /**
+     * Reassignment of the hardware buttons on built-in (non-external) input devices, stored in
+     * {@link #SETTING} as comma separated "scanCode:KEYCODE" pairs. KEYCODE is a key code label
+     * or number, or NONE to disable the button, e.g. "304:BUTTON_B,305:BUTTON_A,316:NONE".
+     * Remapped buttons are served as a key character map overlay, disabled buttons are dropped
+     * before they reach the window manager policy. The power key can't be changed, it is the
+     * key that wakes the device up.
+     */
+    private static final class HardwareButtonRemap {
+        static final String SETTING = "hardware_button_remap";
+        static final String DISABLED = "NONE";
+        static final HardwareButtonRemap EMPTY =
+                new HardwareButtonRemap("", null, new SparseBooleanArray());
+
+        // Scan codes from linux/input-event-codes.h.
+        static final int KEY_VOLUMEDOWN = 114;
+        static final int KEY_VOLUMEUP = 115;
+        static final int KEY_POWER = 116;
+        static final long RESET_CHORD_TIMEOUT_MS = 5000;
+
+        private static final String KEYCODE_LABEL_PREFIX = "KEYCODE_";
+        private static final int MAX_SCAN_CODE = 0x2ff; // KEY_MAX
+
+        final String setting;
+        // "map key" lines for the key character map overlay, null if nothing is remapped.
+        final String overlay;
+        // Scan codes of the disabled buttons.
+        final SparseBooleanArray disabled;
+
+        private HardwareButtonRemap(String setting, String overlay, SparseBooleanArray disabled) {
+            this.setting = setting;
+            this.overlay = overlay;
+            this.disabled = disabled;
+        }
+
+        static HardwareButtonRemap parse(String setting) {
+            if (TextUtils.isEmpty(setting)) {
+                return EMPTY;
+            }
+
+            final StringBuilder overlay = new StringBuilder();
+            final SparseBooleanArray disabled = new SparseBooleanArray();
+            final SparseBooleanArray seen = new SparseBooleanArray();
+            for (String rawEntry : setting.split(",")) {
+                final String entry = rawEntry.trim();
+                if (entry.isEmpty()) {
+                    continue;
+                }
+
+                final int separator = entry.indexOf(':');
+                int scanCode = -1;
+                if (separator > 0) {
+                    try {
+                        scanCode = Integer.parseInt(entry.substring(0, separator).trim());
+                    } catch (NumberFormatException e) {
+                    }
+                }
+                // The key character map parser rejects duplicate scan codes.
+                if (scanCode <= 0 || scanCode > MAX_SCAN_CODE || scanCode == KEY_POWER
+                        || seen.get(scanCode)) {
+                    Slog.w(TAG, "Ignoring invalid hardware button remap '" + entry + "'.");
+                    continue;
+                }
+
+                final String target = entry.substring(separator + 1).trim()
+                        .toUpperCase(Locale.ROOT);
+                if (DISABLED.equals(target)) {
+                    disabled.put(scanCode, true);
+                } else {
+                    final int keyCode = KeyEvent.keyCodeFromString(target);
+                    final String label = KeyEvent.keyCodeToString(keyCode);
+                    if (keyCode == KeyEvent.KEYCODE_UNKNOWN
+                            || !label.startsWith(KEYCODE_LABEL_PREFIX)) {
+                        Slog.w(TAG, "Ignoring invalid hardware button remap '" + entry + "'.");
+                        continue;
+                    }
+                    overlay.append("map key ").append(scanCode).append(' ')
+                            .append(label.substring(KEYCODE_LABEL_PREFIX.length()))
+                            .append('\n');
+                }
+                seen.put(scanCode, true);
+            }
+
+            return new HardwareButtonRemap(setting,
+                    overlay.length() > 0 ? overlay.toString() : null, disabled);
+        }
     }
 
     private final class InputDevicesChangedListenerRecord implements DeathRecipient {
