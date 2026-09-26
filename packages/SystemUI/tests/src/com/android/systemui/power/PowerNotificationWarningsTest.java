@@ -45,6 +45,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 
+import java.util.Optional;
+
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class PowerNotificationWarningsTest extends SysuiTestCase {
@@ -59,7 +61,8 @@ public class PowerNotificationWarningsTest extends SysuiTestCase {
         // Test Instance.
         mContext.addMockSystemService(NotificationManager.class, mMockNotificationManager);
         ActivityStarter starter = mDependency.injectMockDependency(ActivityStarter.class);
-        mPowerNotificationWarnings = new PowerNotificationWarnings(mContext, starter);
+        mPowerNotificationWarnings = new PowerNotificationWarnings(mContext, starter,
+                Optional.empty());
         BatteryStateSnapshot snapshot = new BatteryStateSnapshot(100, false, false, 1,
                 BatteryManager.BATTERY_HEALTH_GOOD, 5, 15);
         mPowerNotificationWarnings.updateSnapshot(snapshot);

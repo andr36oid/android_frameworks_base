@@ -62,7 +62,9 @@ import com.android.systemui.Dependency;
 import com.android.systemui.R;
 import com.android.systemui.SystemUI;
 import com.android.systemui.plugins.ActivityStarter;
+import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.phone.SystemUIDialog;
+import com.android.systemui.statusbar.policy.HeadsUpManager;
 import com.android.systemui.util.NotificationChannels;
 import com.android.systemui.volume.Events;
 
@@ -70,6 +72,8 @@ import java.io.PrintWriter;
 import java.text.NumberFormat;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -160,11 +164,19 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
     @VisibleForTesting SystemUIDialog mUsbHighTempDialog;
     private BatteryStateSnapshot mCurrentBatterySnapshot;
     private ActivityStarter mActivityStarter;
+    private final Optional<HeadsUpManager> mHeadsUpManager;
+
+    // The consoles have no touchscreen to swipe the low battery warning away, so it leaves the
+    // screen by itself after this long. It stays in the notification shade.
+    private static final long WARNING_HEADS_UP_TIMEOUT_MS = 10000;
+    private final Runnable mHideWarningHeadsUp = this::hideWarningHeadsUp;
 
     /**
      */
     @Inject
-    public PowerNotificationWarnings(Context context, ActivityStarter activityStarter) {
+    public PowerNotificationWarnings(Context context, ActivityStarter activityStarter,
+            Optional<HeadsUpManager> headsUpManager) {
+        mHeadsUpManager = headsUpManager;
         mContext = context;
         mNoMan = mContext.getSystemService(NotificationManager.class);
         mPowerMan = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
@@ -317,6 +329,19 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
         final Notification n = nb.build();
         mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_BAD_CHARGER, UserHandle.ALL);
         mNoMan.notifyAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_LOW, n, UserHandle.ALL);
+        mHandler.removeCallbacks(mHideWarningHeadsUp);
+        mHandler.postDelayed(mHideWarningHeadsUp, WARNING_HEADS_UP_TIMEOUT_MS);
+    }
+
+    private void hideWarningHeadsUp() {
+        mHeadsUpManager.ifPresent(headsUpManager -> headsUpManager.getAllEntries()
+                .filter(entry -> entry.getSbn().getId() == SystemMessage.NOTE_POWER_LOW
+                        && TAG_BATTERY.equals(entry.getSbn().getTag())
+                        && mContext.getPackageName().equals(entry.getSbn().getPackageName()))
+                .map(NotificationEntry::getKey)
+                .collect(Collectors.toList())
+                .forEach(key -> headsUpManager.removeNotification(key,
+                        true /* releaseImmediately */)));
     }
 
     private void showAutoSaverSuggestionNotification() {
