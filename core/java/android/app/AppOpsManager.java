@@ -2331,7 +2331,7 @@ public class AppOpsManager {
             AppOpsManager.MODE_ERRORED, // READ_DEVICE_IDENTIFIERS
             AppOpsManager.MODE_ALLOWED, // ALLOW_MEDIA_LOCATION
             AppOpsManager.MODE_DEFAULT, // QUERY_ALL_PACKAGES
-            AppOpsManager.MODE_DEFAULT, // MANAGE_EXTERNAL_STORAGE
+            AppOpsManager.MODE_ALLOWED, // MANAGE_EXTERNAL_STORAGE: every app gets all files access
             AppOpsManager.MODE_DEFAULT, // INTERACT_ACROSS_PROFILES
             AppOpsManager.MODE_IGNORED, // ACTIVATE_PLATFORM_VPN
             AppOpsManager.MODE_DEFAULT, // LOADER_USAGE_STATS
