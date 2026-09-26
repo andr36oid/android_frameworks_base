@@ -758,7 +758,10 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
                     addIfShouldShowAction(tempActions, new AppSwitcherAction());
                 }
             } else if (GLOBAL_ACTION_KEY_CLOSE_APPS.equals(actionKey)) {
-                addIfShouldShowAction(tempActions, new CloseAppsAction());
+                // Only offer it if there's something to close
+                if (!findBackgroundTasks().isEmpty()) {
+                    addIfShouldShowAction(tempActions, new CloseAppsAction());
+                }
             } else {
                 Log.e(TAG, "Invalid global action key " + actionKey);
             }
@@ -1617,6 +1620,25 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
      */
     private int closeBackgroundApps() {
         final IActivityTaskManager atm = ActivityTaskManager.getService();
+        final ArraySet<String> closed = new ArraySet<>();
+        for (TaskInfo task : findBackgroundTasks()) {
+            try {
+                if (atm.removeTask(task.taskId)) {
+                    closed.add(getTaskComponent(task).getPackageName());
+                }
+            } catch (RemoteException e) {
+                Log.w(TAG, "Failed to remove task " + task.taskId, e);
+            }
+        }
+        return closed.size();
+    }
+
+    /**
+     * Tasks of the current user that closeBackgroundApps() would close: everything but the apps
+     * on screen, home, recents, the system and SystemUI.
+     */
+    private List<TaskInfo> findBackgroundTasks() {
+        final IActivityTaskManager atm = ActivityTaskManager.getService();
         final int userId = ActivityManager.getCurrentUser();
         final ArraySet<Integer> onScreen;
         final List<TaskInfo> tasks = new ArrayList<>();
@@ -1629,7 +1651,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
                     ActivityManager.RECENT_IGNORE_UNAVAILABLE, userId).getList());
         } catch (RemoteException e) {
             Log.w(TAG, "Failed to get tasks", e);
-            return 0;
+            return new ArrayList<>();
         }
 
         final ArraySet<Integer> userIds = new ArraySet<>();
@@ -1649,7 +1671,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         }
 
         final ArraySet<Integer> seen = new ArraySet<>();
-        final ArraySet<String> closed = new ArraySet<>();
+        final List<TaskInfo> background = new ArrayList<>();
         for (TaskInfo task : tasks) {
             if (!seen.add(task.taskId) || !userIds.contains(task.userId)
                     || isHomeOrRecentsTask(task)) {
@@ -1659,15 +1681,9 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             if (component == null || keep.contains(component.getPackageName())) {
                 continue;
             }
-            try {
-                if (atm.removeTask(task.taskId)) {
-                    closed.add(component.getPackageName());
-                }
-            } catch (RemoteException e) {
-                Log.w(TAG, "Failed to remove task " + task.taskId, e);
-            }
+            background.add(task);
         }
-        return closed.size();
+        return background;
     }
 
     /**
