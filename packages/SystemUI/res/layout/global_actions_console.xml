@@ -92,6 +92,35 @@
           android:layout_height="wrap_content"
           android:orientation="vertical" />
 
+      <!-- Kill foreground app, for apps that stopped responding -->
+      <LinearLayout
+          android:id="@+id/global_actions_kill_app"
+          android:layout_width="wrap_content"
+          android:layout_height="@dimen/global_actions_console_small_button_height"
+          android:layout_marginTop="@dimen/global_actions_console_section_spacing"
+          android:background="@drawable/global_actions_console_item_background"
+          android:focusable="true"
+          android:gravity="center_vertical"
+          android:orientation="horizontal"
+          android:paddingHorizontal="16dp"
+          android:stateListAnimator="@anim/global_actions_console_item_animator"
+          android:visibility="gone">
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/ic_global_actions_kill_app"
+            android:tint="@color/control_primary_text" />
+        <TextView
+            android:id="@+id/global_actions_kill_app_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/control_primary_text"
+            android:textSize="13sp" />
+      </LinearLayout>
+
     </LinearLayout>
   </ScrollView>
 </LinearLayout>

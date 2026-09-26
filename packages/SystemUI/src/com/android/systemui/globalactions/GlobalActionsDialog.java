@@ -291,6 +291,8 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
     private int mDialogPressDelay = DIALOG_PRESS_DELAY; // ms
     private Handler mMainHandler;
     private CurrentUserContextTracker mCurrentUserContextTracker;
+    // The app the Kill foreground app button stops, null hides the button
+    @Nullable private ForegroundApp mKillAppTarget;
     @VisibleForTesting
     boolean mShowLockScreenCardsAndControls = false;
 
@@ -695,6 +697,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         RestartFastbootAction fbAction = new RestartFastbootAction();
         ArraySet<String> addedKeys = new ArraySet<String>();
         ArraySet<String> addedRestartKeys = new ArraySet<String>();
+        mKillAppTarget = null;
         List<Action> tempActions = new ArrayList<>();
         CurrentUserProvider currentUser = new CurrentUserProvider();
 
@@ -756,6 +759,11 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
                 // Without system recents, only offer the switcher if there's an app to switch to
                 if (isSystemRecentsAvailable() || !getRecentApps(1).isEmpty()) {
                     addIfShouldShowAction(tempActions, new AppSwitcherAction());
+                }
+            } else if (GLOBAL_ACTION_KEY_KILL_APP.equals(actionKey)) {
+                // Not a tile, a small button at the bottom of the menu
+                if (!mKeyguardShowing) {
+                    mKillAppTarget = findForegroundApp();
                 }
             } else if (GLOBAL_ACTION_KEY_CLOSE_APPS.equals(actionKey)) {
                 // Only offer it if there's something to close
@@ -844,6 +852,18 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
 
         if (shouldShowLockMessage(dialog)) {
             dialog.showLockMessage();
+        }
+        if (mKillAppTarget != null) {
+            final ForegroundApp app = mKillAppTarget;
+            dialog.showKillAppButton(app.label, () -> {
+                dialog.dismiss();
+                mBackgroundExecutor.execute(() -> {
+                    killApp(app);
+                    mMainHandler.post(() -> Toast.makeText(mContext, mResources.getString(
+                            com.android.systemui.R.string.global_action_kill_app_done,
+                            app.label), Toast.LENGTH_SHORT).show());
+                });
+            });
         }
         dialog.setCanceledOnTouchOutside(false); // Handled by the custom class.
         dialog.setOnDismissListener(this);
@@ -1694,6 +1714,64 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             background.add(task);
         }
         return background;
+    }
+
+    /** An app on screen, for the Kill foreground app button. */
+    private static final class ForegroundApp {
+        final String packageName;
+        final int userId;
+        final CharSequence label;
+
+        ForegroundApp(String packageName, int userId, CharSequence label) {
+            this.packageName = packageName;
+            this.userId = userId;
+            this.label = label;
+        }
+    }
+
+    /**
+     * The topmost app on screen that may be killed: not home, recents, the system or SystemUI.
+     */
+    @Nullable
+    private ForegroundApp findForegroundApp() {
+        final IActivityTaskManager atm = ActivityTaskManager.getService();
+        try {
+            final ArraySet<Integer> onScreen = getOnScreenTaskIds(atm);
+            // Running tasks come most recent first
+            for (TaskInfo task : atm.getFilteredTasks(Integer.MAX_VALUE,
+                    false /* filterOnlyVisibleRecents */)) {
+                if (!onScreen.contains(task.taskId) || isHomeOrRecentsTask(task)) {
+                    continue;
+                }
+                final ComponentName component = getTaskComponent(task);
+                if (component == null || "android".equals(component.getPackageName())
+                        || mContext.getPackageName().equals(component.getPackageName())) {
+                    continue;
+                }
+                final String packageName = component.getPackageName();
+                final PackageManager pm =
+                        mCurrentUserContextTracker.getCurrentUserContext().getPackageManager();
+                CharSequence label;
+                try {
+                    label = pm.getApplicationInfo(packageName, 0).loadLabel(pm);
+                } catch (PackageManager.NameNotFoundException e) {
+                    label = packageName;
+                }
+                return new ForegroundApp(packageName, task.userId, label);
+            }
+        } catch (RemoteException e) {
+            Log.w(TAG, "Failed to get tasks", e);
+        }
+        return null;
+    }
+
+    /**
+     * Stops an app like Settings' Force stop does, which also works when it no longer responds.
+     * Makes blocking binder calls, keep it off the main thread.
+     */
+    private void killApp(ForegroundApp app) {
+        mContext.getSystemService(ActivityManager.class)
+                .forceStopPackageAsUser(app.packageName, app.userId);
     }
 
     /**
@@ -2990,6 +3068,8 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         private ViewGroup mContainer;
         @VisibleForTesting ViewGroup mLockMessageContainer;
         private TextView mLockMessage;
+        @Nullable private CharSequence mKillAppLabel;
+        @Nullable private Runnable mKillApp;
 
         ActionsDialog(Context context, MyAdapter adapter, MyOverflowAdapter overflowAdapter,
                 Provider<GlobalActionsPanelPlugin.PanelViewController> walletFactory,
@@ -3217,6 +3297,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             mLockMessageContainer = requireViewById(
                     com.android.systemui.R.id.global_actions_lock_message_container);
             mLockMessage = requireViewById(com.android.systemui.R.id.global_actions_lock_message);
+            updateKillAppButton();
 
             View overflowButton = findViewById(
                     com.android.systemui.R.id.global_actions_overflow_button);
@@ -3539,6 +3620,27 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             lockIcon.setTint(mContext.getColor(com.android.systemui.R.color.control_primary_text));
             mLockMessage.setCompoundDrawablesWithIntrinsicBounds(null, lockIcon, null, null);
             mLockMessageContainer.setVisibility(View.VISIBLE);
+        }
+
+        /** Shows the Kill foreground app button at the bottom, naming the app it stops. */
+        void showKillAppButton(CharSequence label, Runnable kill) {
+            mKillAppLabel = label;
+            mKillApp = kill;
+            updateKillAppButton();
+        }
+
+        private void updateKillAppButton() {
+            final View button = requireViewById(com.android.systemui.R.id.global_actions_kill_app);
+            if (mKillApp == null) {
+                button.setVisibility(View.GONE);
+                return;
+            }
+            final TextView label =
+                    button.findViewById(com.android.systemui.R.id.global_actions_kill_app_label);
+            label.setText(mContext.getString(com.android.systemui.R.string.global_action_kill_app,
+                    mKillAppLabel));
+            button.setOnClickListener(v -> mKillApp.run());
+            button.setVisibility(View.VISIBLE);
         }
 
         private static class ResetOrientationData {

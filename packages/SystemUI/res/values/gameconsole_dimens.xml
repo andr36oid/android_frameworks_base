@@ -22,6 +22,7 @@
     <dimen name="global_actions_console_section_spacing">12dp</dimen>
 
     <dimen name="global_actions_console_item_margin">4dp</dimen>
+    <dimen name="global_actions_console_small_button_height">40dp</dimen>
     <dimen name="global_actions_console_item_height">96dp</dimen>
     <dimen name="global_actions_console_item_padding">8dp</dimen>
 
