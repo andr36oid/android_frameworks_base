@@ -447,7 +447,9 @@ public class PackageInstallerActivity extends AlertActivity {
                 startAdminSupportDetailsActivity(
                         UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY);
             } else {
-                handleUnknownSources();
+                // Like before Android 8: no per-app permission and no warning, any app may
+                // hand over an APK, the install screen is the confirmation.
+                initiateInstall();
             }
         }
     }
@@ -461,36 +463,6 @@ public class PackageInstallerActivity extends AlertActivity {
             startActivity(showAdminSupportDetailsIntent);
         }
         finish();
-    }
-
-    private void handleUnknownSources() {
-        if (mOriginatingPackage == null) {
-            Log.i(TAG, "No source found for package " + mPkgInfo.packageName);
-            showDialogInner(DLG_ANONYMOUS_SOURCE);
-            return;
-        }
-        // Shouldn't use static constant directly, see b/65534401.
-        final int appOpCode =
-                AppOpsManager.permissionToOpCode(Manifest.permission.REQUEST_INSTALL_PACKAGES);
-        final int appOpMode = mAppOpsManager.noteOpNoThrow(appOpCode,
-                mOriginatingUid, mOriginatingPackage);
-        switch (appOpMode) {
-            case AppOpsManager.MODE_DEFAULT:
-                mAppOpsManager.setMode(appOpCode, mOriginatingUid,
-                        mOriginatingPackage, AppOpsManager.MODE_ERRORED);
-                // fall through
-            case AppOpsManager.MODE_ERRORED:
-                showDialogInner(DLG_EXTERNAL_SOURCE_BLOCKED);
-                break;
-            case AppOpsManager.MODE_ALLOWED:
-                initiateInstall();
-                break;
-            default:
-                Log.e(TAG, "Invalid app op mode " + appOpMode
-                        + " for OP_REQUEST_INSTALL_PACKAGES found for uid " + mOriginatingUid);
-                finish();
-                break;
-        }
     }
 
     /**

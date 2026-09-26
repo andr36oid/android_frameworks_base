@@ -32,17 +32,11 @@ import android.content.pm.PackageInstaller;
 import android.content.pm.PackageInstaller.SessionInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
-import android.content.pm.UserInfo;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.os.UserManager;
-import android.permission.IPermissionManager;
 import android.util.Log;
-
-import java.util.List;
 
 /**
  * Select which activity is the first visible activity of the installation and forward the intent to
@@ -54,8 +48,6 @@ public class InstallStart extends Activity {
     private static final String DOWNLOADS_AUTHORITY = "downloads";
     private PackageManager mPackageManager;
     private IPackageManager mIPackageManager;
-    private IPermissionManager mIPermissionManager;
-    private UserManager mUserManager;
     private boolean mAbortInstall = false;
 
     @Override
@@ -63,8 +55,6 @@ public class InstallStart extends Activity {
         super.onCreate(savedInstanceState);
         mPackageManager = getPackageManager();
         mIPackageManager = AppGlobals.getPackageManager();
-        mIPermissionManager = AppGlobals.getPermissionManager();
-        mUserManager = getSystemService(UserManager.class);
         Intent intent = getIntent();
         String callingPackage;
 
@@ -110,12 +100,8 @@ public class InstallStart extends Activity {
                 Log.w(LOG_TAG, "Cannot get target sdk version for uid " + originatingUid);
                 // Invalid originating uid supplied. Abort install.
                 mAbortInstall = true;
-            } else if (targetSdkVersion >= Build.VERSION_CODES.O && !declaresAppOpPermission(
-                    originatingUid, Manifest.permission.REQUEST_INSTALL_PACKAGES)) {
-                Log.e(LOG_TAG, "Requesting uid " + originatingUid + " needs to declare permission "
-                        + Manifest.permission.REQUEST_INSTALL_PACKAGES);
-                mAbortInstall = true;
             }
+            // Apps don't need to declare REQUEST_INSTALL_PACKAGES, like before Android 8.
         }
         if (mAbortInstall) {
             setResult(RESULT_CANCELED);
@@ -162,30 +148,6 @@ public class InstallStart extends Activity {
             startActivity(nextActivity);
         }
         finish();
-    }
-
-    private boolean declaresAppOpPermission(int uid, String permission) {
-        try {
-            final String[] packages = mIPermissionManager.getAppOpPermissionPackages(permission);
-            if (packages == null) {
-                return false;
-            }
-            final List<UserInfo> users = mUserManager.getUsers();
-            for (String packageName : packages) {
-                for (UserInfo user : users) {
-                    try {
-                        if (uid == getPackageManager().getPackageUidAsUser(packageName, user.id)) {
-                            return true;
-                        }
-                    } catch (PackageManager.NameNotFoundException e) {
-                        // Ignore and try the next package
-                    }
-                }
-            }
-        } catch (RemoteException rexc) {
-            // If remote package manager cannot be reached, install will likely fail anyway.
-        }
-        return false;
     }
 
     /**
