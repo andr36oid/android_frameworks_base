@@ -646,8 +646,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
      * Adds a tile for every app pinned from the power menu settings.
      */
     private void addPinnedApps(List<Action> actions) {
-        final String pinned = Settings.Secure.getStringForUser(mContentResolver,
-                POWER_MENU_PINNED_APPS, UserHandle.USER_CURRENT);
+        final String pinned = PowerMenuUtils.getPinnedApps(mContext, UserHandle.USER_CURRENT);
         if (TextUtils.isEmpty(pinned)) {
             return;
         }
