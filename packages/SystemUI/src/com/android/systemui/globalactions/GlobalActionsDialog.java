@@ -1389,6 +1389,16 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         }
 
         @Override
+        public View create(
+                Context context, View convertView, ViewGroup parent, LayoutInflater inflater) {
+            final ViewGroup v = (ViewGroup) super.create(context, convertView, parent, inflater);
+            // Point out the long press, it opens the menu customization
+            inflater.inflate(com.android.systemui.R.layout.global_actions_console_long_press_hint,
+                    v, true /* attach */);
+            return v;
+        }
+
+        @Override
         public boolean onLongPress() {
             // Straight to the power menu customization in LineageParts
             Intent intent = new Intent(PartsList.PARTS_ACTION_PREFIX + ".power_menu");

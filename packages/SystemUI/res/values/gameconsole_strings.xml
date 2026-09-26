@@ -30,4 +30,6 @@
     </plurals>
     <!-- Toast after pressing close background apps in the power menu with nothing to close [CHAR LIMIT=NONE] -->
     <string name="global_action_close_apps_none">No background apps to close</string>
+    <!-- Small print below the power menu's Settings button, holding it opens the menu customization [CHAR LIMIT=15] -->
+    <string name="global_action_long_press_hint">Long-press</string>
 </resources>

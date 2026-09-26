@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small print below a power menu button that does something else when held -->
+<TextView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="2dp"
+    android:drawableStart="@drawable/ic_global_actions_customize"
+    android:drawablePadding="3dp"
+    android:drawableTint="@color/control_secondary_text"
+    android:gravity="center_vertical"
+    android:maxLines="1"
+    android:text="@string/global_action_long_press_hint"
+    android:textColor="@color/control_secondary_text"
+    android:textSize="11sp" />
