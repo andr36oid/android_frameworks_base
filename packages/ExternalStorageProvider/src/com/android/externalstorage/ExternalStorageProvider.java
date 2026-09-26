@@ -60,10 +60,7 @@ import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.text.Normalizer;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -73,11 +70,8 @@ import java.util.stream.Collectors;
 /**
  * Presents content of the shared (a.k.a. "external") storage.
  * <p>
- * Starting with Android 11 (R), restricts access to the certain sections of the shared storage:
- * {@code Android/data/}, {@code Android/obb/} and {@code Android/sandbox/}, that will be hidden in
- * the DocumentsUI by default.
- * See <a href="https://developer.android.com/about/versions/11/privacy/storage">
- * Storage updates in Android 11</a>.
+ * Unlike stock Android 11, nothing is hidden or blocked: {@code Android/data/},
+ * {@code Android/obb/} and the root of the storage can be browsed and picked like before.
  * <p>
  * Documents ID format: {@code root:path/to/file}.
  */
@@ -90,10 +84,6 @@ public class ExternalStorageProvider extends FileSystemProvider {
 
     private static final Uri BASE_URI =
             new Uri.Builder().scheme(ContentResolver.SCHEME_CONTENT).authority(AUTHORITY).build();
-
-    private static final String PRIMARY_EMULATED_STORAGE_PATH = "/storage/emulated/";
-
-    private static final String STORAGE_PATH = "/storage/";
 
     private static final String[] DEFAULT_ROOT_PROJECTION = new String[] {
             Root.COLUMN_ROOT_ID, Root.COLUMN_FLAGS, Root.COLUMN_ICON, Root.COLUMN_TITLE,
@@ -299,79 +289,13 @@ public class ExternalStorageProvider extends FileSystemProvider {
     }
 
     /**
-     * Mark {@code Android/data/}, {@code Android/obb/} and {@code Android/sandbox/} on the
-     * integrated shared ("external") storage along with all their content and subdirectories as
-     * hidden.
+     * Nothing is hidden: like before Android 11, Android/data/, Android/obb/ and
+     * Android/sandbox/ are shown and may be picked like any other folder.
      */
     @Override
     protected boolean shouldHideDocument(@NonNull String documentId) {
-        // Don't need to hide anything on USB drives.
-        if (isOnRemovableUsbStorage(documentId)) {
-            return false;
-        }
-
-        try {
-            final RootInfo root = getRootFromDocId(documentId);
-            final String canonicalPath = getPathFromDocId(documentId);
-            return isRestrictedPath(root.rootId, canonicalPath);
-        } catch (Exception e) {
-            return true;
-        }
+        return false;
     }
-
-    /**
-     * Based on the given root id and path, we restrict path access if file is Android/data or
-     * Android/obb or Android/sandbox or one of their subdirectories.
-     *
-     * @param canonicalPath of the file
-     * @return true if path is restricted
-     */
-    private boolean isRestrictedPath(String rootId, String canonicalPath) {
-        if (rootId == null || canonicalPath == null) {
-            return true;
-        }
-
-        final String rootPath;
-        if (rootId.equalsIgnoreCase(ROOT_ID_PRIMARY_EMULATED)) {
-            // Creates "/storage/emulated/<user-id>"
-            rootPath = PRIMARY_EMULATED_STORAGE_PATH + UserHandle.myUserId();
-        } else {
-            // Creates "/storage/<volume-uuid>"
-            rootPath = STORAGE_PATH + rootId;
-        }
-        List<java.nio.file.Path> restrictedPathList = Arrays.asList(
-                Paths.get(rootPath, "Android", "data"),
-                Paths.get(rootPath, "Android", "obb"),
-                Paths.get(rootPath, "Android", "sandbox"));
-        // We need to identify restricted parent paths which actually exist on the device
-        List<java.nio.file.Path> validRestrictedPathsToCheck = restrictedPathList.stream().filter(
-                Files::exists).collect(Collectors.toList());
-
-        boolean isRestricted = false;
-        java.nio.file.Path filePathToCheck = Paths.get(rootPath, canonicalPath);
-        try {
-            while (filePathToCheck != null) {
-                for (java.nio.file.Path restrictedPath : validRestrictedPathsToCheck) {
-                    if (Files.isSameFile(restrictedPath, filePathToCheck)) {
-                        isRestricted = true;
-                        Log.v(TAG, "Restricting access for path: " + filePathToCheck);
-                        break;
-                    }
-                }
-                if (isRestricted) {
-                    break;
-                }
-
-                filePathToCheck = filePathToCheck.getParent();
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Error in checking file equality check.", e);
-            isRestricted = true;
-        }
-
-        return isRestricted;
-    }
-
 
     /**
      * Check that the directory is the root of storage or blocked file from tree.
@@ -387,39 +311,9 @@ public class ExternalStorageProvider extends FileSystemProvider {
     @Override
     protected boolean shouldBlockDirectoryFromTree(@NonNull String documentId)
             throws FileNotFoundException {
-        final File dir = getFileForDocId(documentId, false);
-        // The file is null or it is not a directory
-        if (dir == null || !dir.isDirectory()) {
-            return false;
-        }
-
-        // Allow all directories on USB, including the root.
-        if (isOnRemovableUsbStorage(documentId)) {
-            return false;
-        }
-
-        // The root of the storage, /Download/ and /Android/ may be picked as well, emulator
-        // frontends want a games folder anywhere.
-
-        // This shouldn't really make a difference, but just in case - let's block hidden
-        // directories as well.
-        if (shouldHideDocument(documentId)) {
-            return true;
-        }
-
+        // Every folder may be picked, including the root of the storage, /Download/ and
+        // /Android/: emulator frontends want a games folder anywhere.
         return false;
-    }
-
-    private boolean isOnRemovableUsbStorage(@NonNull String documentId) {
-        final RootInfo rootInfo;
-        try {
-            rootInfo = getRootFromDocId(documentId);
-        } catch (FileNotFoundException e) {
-            Log.e(TAG, "Failed to determine rootInfo for docId\"" + documentId + '"');
-            return false;
-        }
-
-        return (rootInfo.flags & Root.FLAG_REMOVABLE_USB) != 0;
     }
 
     @NonNull
