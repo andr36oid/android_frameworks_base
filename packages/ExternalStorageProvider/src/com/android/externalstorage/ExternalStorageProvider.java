@@ -29,7 +29,6 @@ import android.icu.lang.UProperty;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.IBinder;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -67,7 +66,6 @@ import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -400,21 +398,8 @@ public class ExternalStorageProvider extends FileSystemProvider {
             return false;
         }
 
-        // Get canonical(!) path. Note that this path will have neither leading nor training "/".
-        // This the root's path will be just an empty string.
-        final String path = getPathFromDocId(documentId);
-
-        final String normalizedPath = normalizeAndFilterDefaultIgnorableCodepoints(path);
-        // Block the root of the storage
-        if (normalizedPath.isEmpty()) {
-            return true;
-        }
-
-        // Block /Download/ and /Android/ folders from the tree.
-        if (equalIgnoringCase(normalizedPath, Environment.DIRECTORY_DOWNLOADS)
-                || equalIgnoringCase(normalizedPath, Environment.DIRECTORY_ANDROID)) {
-            return true;
-        }
+        // The root of the storage, /Download/ and /Android/ may be picked as well, emulator
+        // frontends want a games folder anywhere.
 
         // This shouldn't really make a difference, but just in case - let's block hidden
         // directories as well.
@@ -869,10 +854,6 @@ public class ExternalStorageProvider extends FileSystemProvider {
         } finally {
             Binder.restoreCallingIdentity(token);
         }
-    }
-
-    private static boolean equalIgnoringCase(@NonNull String a, @NonNull String b) {
-        return TextUtils.equals(a.toLowerCase(Locale.ROOT), b.toLowerCase(Locale.ROOT));
     }
 
     /**
