@@ -4317,6 +4317,14 @@ class StorageManagerService extends IStorageManager.Stub
                 return Zygote.MOUNT_EXTERNAL_PASS_THROUGH;
             }
 
+            if (mIsFuseEnabled) {
+                // Like before Android 11, every app may read and write all of Android/data and
+                // Android/obb. With app data isolation off these are bind mounted from the lower
+                // file system and this mode adds the ext_data_rw and ext_obb_rw groups; vold's
+                // default ACLs keep the files in there group accessible.
+                return Zygote.MOUNT_EXTERNAL_ANDROID_WRITABLE;
+            }
+
             if (mIsFuseEnabled && (mDownloadsAuthorityAppId == UserHandle.getAppId(uid)
                     || mExternalStorageAuthorityAppId == UserHandle.getAppId(uid))) {
                 // DownloadManager can write in app-private directories on behalf of apps;
