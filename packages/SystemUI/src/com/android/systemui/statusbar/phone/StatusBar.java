@@ -2503,6 +2503,10 @@ public class StatusBar extends SystemUI implements DemoMode,
                 mStatusBarWindowHidden = state == WINDOW_STATE_HIDDEN;
                 updateHideIconsForBouncer(false /* animate */);
             }
+            // joyMouse is stricter about its toggle chord while a fullscreen app, usually a
+            // game, is on screen
+            SystemProperties.set("sys.joymouse.fullscreen",
+                    state == WINDOW_STATE_HIDDEN ? "1" : "0");
         }
 
         updateBubblesVisibility();
