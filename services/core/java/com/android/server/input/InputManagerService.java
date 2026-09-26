@@ -59,11 +59,14 @@ import android.os.Message;
 import android.os.MessageQueue;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.DeviceConfig;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
 import android.text.TextUtils;
+import android.util.AtomicFile;
 import android.util.Log;
 import android.util.Slog;
 import android.util.SparseArray;
@@ -105,11 +108,13 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1770,6 +1775,27 @@ public class InputManagerService extends IInputManager.Stub
     private void updateHardwareButtonRemapFromSettings() {
         mHardwareButtonRemap = HardwareButtonRemap.parse(Settings.Global.getString(
                 mContext.getContentResolver(), HardwareButtonRemap.SETTING));
+        publishHardwareButtonRemap(mHardwareButtonRemap.setting);
+    }
+
+    // The joyMouse daemon grabs the pad in mouse mode and needs the remap to treat each button
+    // as the one it acts as. The setting can be longer than a property allows, so it goes to a
+    // file, and a property change tells the daemon to read it again.
+    private static void publishHardwareButtonRemap(String setting) {
+        final AtomicFile file = new AtomicFile(new File(Environment.getDataSystemDirectory(),
+                HardwareButtonRemap.FILE));
+        FileOutputStream out = null;
+        try {
+            out = file.startWrite();
+            out.write(setting.getBytes(StandardCharsets.UTF_8));
+            file.finishWrite(out);
+        } catch (IOException e) {
+            file.failWrite(out);
+            Slog.w(TAG, "Failed to write the hardware button remap.", e);
+            return;
+        }
+        SystemProperties.set(HardwareButtonRemap.SERIAL_PROPERTY,
+                Long.toString(SystemClock.elapsedRealtime()));
     }
 
     private void registerHardwareButtonRemapSettingObserver() {
@@ -2551,6 +2577,9 @@ public class InputManagerService extends IInputManager.Stub
      */
     private static final class HardwareButtonRemap {
         static final String SETTING = "hardware_button_remap";
+        // Copy for the joyMouse daemon in /data/system, and the property that announces it.
+        static final String FILE = "hardware_button_remap";
+        static final String SERIAL_PROPERTY = "sys.hardware_button_remap.serial";
         static final String DISABLED = "NONE";
         static final HardwareButtonRemap EMPTY =
                 new HardwareButtonRemap("", null, new SparseBooleanArray());
