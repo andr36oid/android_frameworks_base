@@ -14,7 +14,8 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<!-- One cell of the power menu stats panel -->
+<!-- One metric of the power menu stats strip: text as the performance overlay writes it
+     (monospace bold 11sp with a black shadow), a small graph under it -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="0dp"
@@ -26,27 +27,21 @@
         android:id="@+id/global_actions_stats_value"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:fontFeatureSettings="tnum"
+        android:ellipsize="none"
+        android:fontFamily="monospace"
+        android:textStyle="bold"
         android:includeFontPadding="false"
         android:singleLine="true"
-        android:textColor="?android:attr/textColorPrimary"
+        android:shadowColor="#FF000000"
+        android:shadowDx="1"
+        android:shadowDy="1"
+        android:shadowRadius="2"
+        android:textColor="@color/global_actions_stats_value"
         android:textSize="@dimen/global_actions_stats_text_size" />
 
     <com.android.systemui.globalactions.PowerMenuSparklineView
         android:id="@+id/global_actions_stats_graph"
         android:layout_width="match_parent"
         android:layout_height="@dimen/global_actions_stats_graph_height"
-        android:layout_marginVertical="3dp" />
-
-    <TextView
-        android:id="@+id/global_actions_stats_detail"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:fontFeatureSettings="tnum"
-        android:includeFontPadding="false"
-        android:singleLine="true"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="@dimen/global_actions_stats_text_size" />
+        android:layout_marginTop="@dimen/global_actions_stats_graph_gap" />
 </LinearLayout>

@@ -24,11 +24,17 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+  <!-- System stats strip along the top edge of the screen, outside the scroll view so it
+       stays put. Hidden unless switched on; ActionsDialog.updateStatsPanel then lets it take
+       the status bar's place, which the scrim covers anyway. -->
+  <include layout="@layout/global_actions_console_stats" />
+
   <!-- One scroll view for everything: it always holds focusable tiles, so it never takes the
        D-pad focus itself, and fillViewport lets the content center vertically. -->
   <ScrollView
       android:layout_width="match_parent"
-      android:layout_height="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
       android:fillViewport="true"
       android:scrollbars="none">
 
@@ -52,9 +58,6 @@
           android:theme="@style/qs_theme"
           android:clipChildren="false"
           android:clipToPadding="false">
-
-        <!-- System stats with small graphs above the buttons, hidden unless switched on -->
-        <include layout="@layout/global_actions_console_stats" />
 
         <!-- GlobalActionsConsoleLayout adds one container per section in here -->
         <LinearLayout

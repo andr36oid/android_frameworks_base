@@ -3049,6 +3049,8 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         @Nullable private GlobalActionsPanelPlugin.PanelViewController mWalletViewController;
         private boolean mKeyguardShowing;
         private boolean mShowing;
+        /** The stats strip shows at the top edge, in place of the status bar inset. */
+        private boolean mStatsShowing;
         private float mScrimAlpha;
         private ResetOrientationData mResetOrientationData;
         private final NotificationShadeWindowController mNotificationShadeWindowController;
@@ -3387,8 +3389,9 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
 
             ViewGroup root = (ViewGroup) mGlobalActionsLayout.getRootView();
             root.setOnApplyWindowInsetsListener((v, windowInsets) -> {
+                // The stats strip sits right at the top edge, over the covered status bar
                 root.setPadding(windowInsets.getStableInsetLeft(),
-                        windowInsets.getStableInsetTop(),
+                        mStatsShowing ? 0 : windowInsets.getStableInsetTop(),
                         windowInsets.getStableInsetRight(),
                         windowInsets.getStableInsetBottom());
                 return WindowInsets.CONSUMED;
@@ -3647,23 +3650,21 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         }
 
         /**
-         * Shows the stats panel above the buttons if it is switched on and {@code show}.
-         * While it shows, the menu gets less space above and below, so the buttons still fit
-         * a 480 px tall screen.
+         * Shows the stats strip along the top edge of the screen if it is switched on and
+         * {@code show}. While it shows it takes the place of the status bar inset (the scrim
+         * hides the status bar anyway), so the buttons keep their room below it.
          */
         private void updateStatsPanel(boolean show) {
             final View panel = findViewById(com.android.systemui.R.id.global_actions_stats);
-            final View root = findViewById(com.android.systemui.R.id.global_actions_grid_root);
-            if (panel == null || root == null) {
+            if (panel == null) {
                 return;
             }
             final boolean visible = show && PowerMenuStatsPanel.isSwitchedOn();
             panel.setVisibility(visible ? View.VISIBLE : View.GONE);
-            final int padding = mContext.getResources().getDimensionPixelSize(visible
-                    ? com.android.systemui.R.dimen.global_actions_stats_menu_padding
-                    : com.android.systemui.R.dimen.global_actions_console_side_margin);
-            root.setPaddingRelative(root.getPaddingStart(), padding, root.getPaddingEnd(),
-                    padding);
+            if (visible != mStatsShowing) {
+                mStatsShowing = visible;
+                getWindow().getDecorView().requestApplyInsets();
+            }
         }
 
         private static class ResetOrientationData {
