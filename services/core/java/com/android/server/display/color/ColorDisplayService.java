@@ -111,6 +111,14 @@ public final class ColorDisplayService extends SystemService {
      */
     private static final long TRANSITION_DURATION = 3000L;
 
+    /**
+     * andr36oid: Secure setting, percent of the screen brightness that "Extra dim" keeps
+     * (0 = off). Applied as a color matrix that the display hardware usually takes over (see
+     * {@link DisplayTransformManager#isColorLutAvailable()}).
+     */
+    private static final String EXTRA_DIM_SETTING = "andr36oid_extra_dim";
+    private static final int EXTRA_DIM_MIN_PERCENT = 10;
+
     private static final int MSG_USER_CHANGED = 0;
     private static final int MSG_SET_UP = 1;
     private static final int MSG_APPLY_NIGHT_DISPLAY_IMMEDIATE = 2;
@@ -358,6 +366,9 @@ public final class ColorDisplayService extends SystemService {
                             case Secure.DISPLAY_WHITE_BALANCE_ENABLED:
                                 updateDisplayWhiteBalanceStatus();
                                 break;
+                            case EXTRA_DIM_SETTING:
+                                onExtraDimChanged();
+                                break;
                         }
                     }
                 }
@@ -387,12 +398,16 @@ public final class ColorDisplayService extends SystemService {
                 false /* notifyForDescendants */, mContentObserver, mCurrentUser);
         cr.registerContentObserver(Secure.getUriFor(Secure.DISPLAY_WHITE_BALANCE_ENABLED),
                 false /* notifyForDescendants */, mContentObserver, mCurrentUser);
+        cr.registerContentObserver(Secure.getUriFor(EXTRA_DIM_SETTING),
+                false /* notifyForDescendants */, mContentObserver, mCurrentUser);
 
         // Apply the accessibility settings first, since they override most other settings.
         onAccessibilityInversionChanged();
         onAccessibilityDaltonizerChanged();
 
         setUpDisplayCompositionColorSpaces(getContext().getResources());
+
+        onExtraDimChanged();
 
         // Set the color mode, if valid, and immediately apply the updated tint matrix based on the
         // existing activated state. This ensures consistency of tint across the color mode change.
@@ -521,6 +536,26 @@ public final class ColorDisplayService extends SystemService {
         }
     }
 
+    /**
+     * andr36oid: applies or removes "Extra dim" from its Secure setting.
+     */
+    private void onExtraDimChanged() {
+        final int percent = Secure.getIntForUser(getContext().getContentResolver(),
+                EXTRA_DIM_SETTING, 0, mCurrentUser);
+        final DisplayTransformManager dtm = getLocalService(DisplayTransformManager.class);
+        if (percent <= 0 || percent >= 100) {
+            dtm.setColorMatrix(DisplayTransformManager.LEVEL_COLOR_MATRIX_EXTRA_DIM, null);
+            return;
+        }
+        final float scale = Math.max(percent, EXTRA_DIM_MIN_PERCENT) / 100f;
+        final float[] matrix = new float[16];
+        Matrix.setIdentityM(matrix, 0);
+        matrix[0] = scale;
+        matrix[5] = scale;
+        matrix[10] = scale;
+        dtm.setColorMatrix(DisplayTransformManager.LEVEL_COLOR_MATRIX_EXTRA_DIM, matrix);
+    }
+
     private void onAccessibilityActivated() {
         onDisplayColorModeChanged(getColorModeInternal());
     }
@@ -588,7 +623,9 @@ public final class ColorDisplayService extends SystemService {
         final float[] from = dtm.getColorMatrix(tintController.getLevel());
         final float[] to = tintController.getMatrix();
 
-        if (immediate) {
+        // andr36oid: no fade when the display hardware applies the tint; each step would show
+        // one frame without it.
+        if (immediate || DisplayTransformManager.isColorLutAvailable()) {
             dtm.setColorMatrix(tintController.getLevel(), to);
         } else {
             TintValueAnimator valueAnimator = TintValueAnimator.ofMatrix(COLOR_MATRIX_EVALUATOR,

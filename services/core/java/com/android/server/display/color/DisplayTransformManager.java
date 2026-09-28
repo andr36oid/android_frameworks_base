@@ -31,6 +31,9 @@ import android.view.Display;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -46,6 +49,11 @@ public class DisplayTransformManager {
      * Color transform level used by Night display to tint the display red.
      */
     public static final int LEVEL_COLOR_MATRIX_NIGHT_DISPLAY = 100;
+    /**
+     * andr36oid: color transform level used by "Extra dim" to darken the whole screen below the
+     * lowest backlight level.
+     */
+    public static final int LEVEL_COLOR_MATRIX_EXTRA_DIM = 110;
     /**
      * Color transform level used by display white balance to adjust the display's white point.
      */
@@ -113,6 +121,26 @@ public class DisplayTransformManager {
 
     private static final IBinder sFlinger = ServiceManager.getService(SURFACE_FLINGER);
 
+    /*
+     * andr36oid: the RK3326 composer (HWC 1.x through the HWC2 adapter) can't apply a color
+     * matrix, so SurfaceFlinger composes every frame on the GPU while one is set. The display
+     * controller (VOP) has a 256 entry color table that it applies while scanning out, for free.
+     * The kernel exposes it as color_lut. Color matrices that only scale red, green and blue
+     * (Night Light, extra dim) go to that table; anything else (color inversion, grayscale...)
+     * still goes to SurfaceFlinger. persist.andr36oid.color_lut=false turns this off.
+     */
+    private static final String COLOR_LUT_PATH = SystemProperties.get(
+            "ro.andr36oid.color_lut_path", "/sys/devices/platform/ff460000.vop/color_lut");
+    private static final int COLOR_LUT_SIZE = 256;
+    private static final float COLOR_LUT_EPSILON = 1e-4f;
+
+    /** The color table holds the current transform (SurfaceFlinger has none). */
+    @GuardedBy("mColorMatrix")
+    private boolean mColorLutActive;
+    /** SurfaceFlinger has a color matrix set. */
+    @GuardedBy("mColorMatrix")
+    private boolean mFlingerMatrixSet;
+
     /* package */ DisplayTransformManager() {
     }
 
@@ -154,7 +182,7 @@ public class DisplayTransformManager {
                 }
 
                 // Update the current color transform.
-                applyColorMatrix(computeColorMatrixLocked());
+                applyColorMatrixLocked(computeColorMatrixLocked());
             }
         }
     }
@@ -191,6 +219,105 @@ public class DisplayTransformManager {
             Matrix.multiplyMM(result[(i + 1) % 2], 0, result[i % 2], 0, rhs, 0);
         }
         return result[count % 2];
+    }
+
+    /**
+     * andr36oid: whether color matrices that only scale red, green and blue are applied by the
+     * display hardware. Callers skip transition animations then: every table change shows one
+     * frame without the table.
+     */
+    public static boolean isColorLutAvailable() {
+        return SystemProperties.getBoolean("persist.andr36oid.color_lut", true)
+                && new File(COLOR_LUT_PATH).canWrite();
+    }
+
+    /**
+     * Applies the composed color matrix, through the display color table when it only scales
+     * red, green and blue, else through SurfaceFlinger.
+     */
+    @GuardedBy("mColorMatrix")
+    private void applyColorMatrixLocked(float[] m) {
+        final boolean identity = m == null || isScaleMatrix(m, true);
+        if (!identity && isScaleMatrix(m, false) && isColorLutAvailable()
+                && writeColorLut(m[0], m[5], m[10])) {
+            mColorLutActive = true;
+            if (mFlingerMatrixSet) {
+                applyColorMatrix(null);
+                mFlingerMatrixSet = false;
+            }
+            return;
+        }
+        if (mColorLutActive) {
+            writeColorLut(1f, 1f, 1f);
+            mColorLutActive = false;
+        }
+        if (m != null || mFlingerMatrixSet) {
+            applyColorMatrix(m);
+            mFlingerMatrixSet = m != null;
+        }
+    }
+
+    /**
+     * Whether m only scales red, green and blue by 0..1 (or, with identity set, is the identity).
+     */
+    @VisibleForTesting
+    static boolean isScaleMatrix(float[] m, boolean identity) {
+        for (int i = 0; i < 16; i++) {
+            final boolean diagonal = i == 0 || i == 5 || i == 10 || i == 15;
+            final float want = diagonal && (identity || i == 15) ? 1f : 0f;
+            if (!diagonal || identity || i == 15) {
+                if (Math.abs(m[i] - want) > COLOR_LUT_EPSILON) {
+                    return false;
+                }
+            } else if (m[i] < 0f || m[i] > 1f + COLOR_LUT_EPSILON) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Builds the kernel color_lut text for the given channel gains: 256 entries 0xRRGGBB. With a
+     * linear color matrix, the gains apply to linear light (sRGB curve), as SurfaceFlinger does.
+     */
+    @VisibleForTesting
+    static String buildColorLut(float r, float g, float b, boolean linear) {
+        final StringBuilder sb = new StringBuilder(COLOR_LUT_SIZE * 7);
+        for (int i = 0; i < COLOR_LUT_SIZE; i++) {
+            final float x = i / (float) (COLOR_LUT_SIZE - 1);
+            final int entry = (lutChannel(x, r, linear) << 16)
+                    | (lutChannel(x, g, linear) << 8) | lutChannel(x, b, linear);
+            sb.append(Integer.toHexString(entry)).append(i == COLOR_LUT_SIZE - 1 ? '\n' : ' ');
+        }
+        return sb.toString();
+    }
+
+    private static int lutChannel(float x, float gain, boolean linear) {
+        float y;
+        if (linear) {
+            final float l = x <= 0.04045f ? x / 12.92f
+                    : (float) Math.pow((x + 0.055f) / 1.055f, 2.4f);
+            final float s = Math.min(1f, l * gain);
+            y = s <= 0.0031308f ? s * 12.92f
+                    : 1.055f * (float) Math.pow(s, 1f / 2.4f) - 0.055f;
+        } else {
+            y = x * gain;
+        }
+        return Math.max(0, Math.min(COLOR_LUT_SIZE - 1, Math.round(y * (COLOR_LUT_SIZE - 1))));
+    }
+
+    private static boolean writeColorLut(float r, float g, float b) {
+        final boolean off = Math.abs(r - 1f) <= COLOR_LUT_EPSILON
+                && Math.abs(g - 1f) <= COLOR_LUT_EPSILON && Math.abs(b - 1f) <= COLOR_LUT_EPSILON;
+        final String text = off ? "off\n" : buildColorLut(r, g, b, needsLinearColorMatrix());
+        // One write() call: sysfs hands the kernel one buffer per write.
+        try (FileOutputStream out = new FileOutputStream(COLOR_LUT_PATH)) {
+            out.write(text.getBytes());
+            return true;
+        } catch (IOException e) {
+            Slog.e(TAG, "Failed to write the display color table", e);
+            return false;
+        }
     }
 
     /**
