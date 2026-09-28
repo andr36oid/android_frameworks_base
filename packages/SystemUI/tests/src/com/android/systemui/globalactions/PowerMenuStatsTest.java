@@ -193,6 +193,52 @@ public class PowerMenuStatsTest {
         assertEquals(-1, reader.ramPercent);
     }
 
+    @Test
+    public void format_likeTheOverlay() {
+        assertEquals(" 23%", PowerMenuStatsFormat.cpuValue(23));
+        assertEquals("100%", PowerMenuStatsFormat.cpuValue(100));
+        assertEquals("  --", PowerMenuStatsFormat.cpuValue(-1));
+        assertEquals(" 1.30GHz", PowerMenuStatsFormat.cpuExtra(1296));
+        assertEquals("", PowerMenuStatsFormat.cpuExtra(-1));
+        assertEquals("52°C", PowerMenuStatsFormat.tempValue(51.6f));
+        assertEquals("--", PowerMenuStatsFormat.tempValue(Float.NaN));
+        assertEquals(" max 61", PowerMenuStatsFormat.tempExtra(60.8f));
+        assertEquals("", PowerMenuStatsFormat.tempExtra(Float.NaN));
+        assertEquals(" -1.9W", PowerMenuStatsFormat.batteryExtra(1.87f, false));
+        assertEquals(" +5.0W", PowerMenuStatsFormat.batteryExtra(5f, true));
+        assertEquals(" 612/976M", PowerMenuStatsFormat.ramExtra(612, 976));
+        assertEquals("", PowerMenuStatsFormat.ramExtra(-1, 976));
+    }
+
+    @Test
+    public void format_levelsLikeTheOverlay() {
+        assertEquals(PowerMenuStatsFormat.LEVEL_NORMAL, PowerMenuStatsFormat.tempLevel(64f));
+        assertEquals(PowerMenuStatsFormat.LEVEL_OK, PowerMenuStatsFormat.tempLevel(65f));
+        assertEquals(PowerMenuStatsFormat.LEVEL_BAD, PowerMenuStatsFormat.tempLevel(75f));
+        assertEquals(PowerMenuStatsFormat.LEVEL_GOOD,
+                PowerMenuStatsFormat.batteryLevel(10, true));
+        assertEquals(PowerMenuStatsFormat.LEVEL_BAD,
+                PowerMenuStatsFormat.batteryLevel(15, false));
+        assertEquals(PowerMenuStatsFormat.LEVEL_NORMAL,
+                PowerMenuStatsFormat.batteryLevel(16, false));
+        assertEquals(PowerMenuStatsFormat.LEVEL_OK, PowerMenuStatsFormat.ramLevel(90));
+        assertEquals(PowerMenuStatsFormat.LEVEL_NORMAL, PowerMenuStatsFormat.ramLevel(-1));
+    }
+
+    @Test
+    public void format_scale() {
+        final float[] values = { Float.NaN, 50f, 55f };
+        float[] scale = PowerMenuStatsFormat.scale(values, 3, 0f, 100f, 0f);
+        assertEquals(0f, scale[0], 0f);
+        assertEquals(100f, scale[1], 0f);
+        // Follows the values, at least 10 apart
+        scale = PowerMenuStatsFormat.scale(values, 3, Float.NaN, Float.NaN, 10f);
+        assertEquals(48f, scale[0], 0f);
+        assertEquals(58f, scale[1], 0.001f);
+        assertEquals(55f, PowerMenuStatsFormat.max(values, 3), 0f);
+        assertTrue(Float.isNaN(PowerMenuStatsFormat.max(values, 1)));
+    }
+
     private void write(String path, String text) throws IOException {
         final File file = new File(mRoot, path);
         file.getParentFile().mkdirs();

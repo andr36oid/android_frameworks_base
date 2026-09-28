@@ -17,19 +17,28 @@
 package com.android.systemui.globalactions;
 
 import android.content.Context;
-import android.content.res.TypedArray;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.util.AttributeSet;
 import android.view.View;
 
+import com.android.systemui.R;
+
 /**
- * A tiny line graph with a light fill below the line, for the power menu stats panel.
- * The newest value sits at the right edge; the full width is the whole history, so a young
- * history only fills the right part. NaN values leave a gap.
+ * A tiny line graph for the power menu stats strip, drawn the way the performance overlay
+ * draws its text: one flat color per metric, a 1 px black drop shadow so it reads over any
+ * background, and a see-through fill under the line in the same color. No frame and no
+ * axis, only a faint baseline. The newest value sits at the right edge; the full width is
+ * the whole history, so a young history only fills the right part. NaN values leave a gap.
  */
 public class PowerMenuSparklineView extends View {
+
+    /** Opacity of the fill under the line, out of 255. */
+    private static final int FILL_ALPHA = 0x40;
+    /** Opacity of the baseline, out of 255. */
+    private static final int BASELINE_ALPHA = 0x4d;
 
     private final Paint mLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -45,28 +54,33 @@ public class PowerMenuSparklineView extends View {
 
     public PowerMenuSparklineView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        final TypedArray a = context.obtainStyledAttributes(new int[] {
-                android.R.attr.colorAccent, android.R.attr.textColorSecondary });
-        final int accent = a.getColor(0, 0xff80deea);
-        final int secondary = a.getColor(1, 0x99ffffff);
-        a.recycle();
-
         final float density = getResources().getDisplayMetrics().density;
         mLinePaint.setStyle(Paint.Style.STROKE);
-        mLinePaint.setStrokeWidth(1.5f * density);
+        mLinePaint.setStrokeWidth(Math.max(1f, density));
         mLinePaint.setStrokeJoin(Paint.Join.ROUND);
         mLinePaint.setStrokeCap(Paint.Cap.ROUND);
-        mLinePaint.setColor(accent);
+        // The overlay's text shadow: radius 2, offset 1/1, black
+        mLinePaint.setShadowLayer(2, 1, 1, Color.BLACK);
         mFillPaint.setStyle(Paint.Style.FILL);
-        // Same hue, about a fifth of the opacity
-        mFillPaint.setColor((accent & 0x00ffffff) | 0x38000000);
-        mBaselinePaint.setStrokeWidth(Math.max(1f, density / 2));
-        mBaselinePaint.setColor((secondary & 0x00ffffff) | 0x30000000);
+        mBaselinePaint.setStrokeWidth(1f);
+        setColor(context.getColor(R.color.global_actions_stats_label));
 
         setFocusable(false);
         setFocusableInTouchMode(false);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         setWillNotDraw(false);
+    }
+
+    /** The metric's color: the line in full, the fill and the baseline see-through. */
+    public void setColor(int color) {
+        final int rgb = color & 0x00ffffff;
+        if (mLinePaint.getColor() == (rgb | 0xff000000)) {
+            return;
+        }
+        mLinePaint.setColor(rgb | 0xff000000);
+        mFillPaint.setColor(rgb | (FILL_ALPHA << 24));
+        mBaselinePaint.setColor(rgb | (BASELINE_ALPHA << 24));
+        invalidate();
     }
 
     /**
@@ -91,7 +105,7 @@ public class PowerMenuSparklineView extends View {
         final float top = getPaddingTop() + mLinePaint.getStrokeWidth();
         final float right = getWidth() - getPaddingRight();
         final float bottom = getHeight() - getPaddingBottom();
-        canvas.drawLine(left, bottom, right, bottom, mBaselinePaint);
+        canvas.drawLine(left, bottom - 0.5f, right, bottom - 0.5f, mBaselinePaint);
         if (mCount == 0 || right <= left || bottom <= top) {
             return;
         }

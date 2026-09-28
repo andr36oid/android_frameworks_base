@@ -14,9 +14,12 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<!-- Power menu stats panel card: the resting look of the power menu tiles -->
+<!-- Behind the power menu stats strip: the overlay's background color at the top edge,
+     fading out towards the menu. No corners and no border. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/control_default_background" />
-    <corners android:radius="@dimen/control_corner_radius" />
+    <gradient
+        android:angle="270"
+        android:startColor="@color/global_actions_stats_background"
+        android:endColor="@android:color/transparent" />
 </shape>

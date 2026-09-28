@@ -14,19 +14,18 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<!-- Power menu stats panel: one card above the buttons with four cells side by side
-     (CPU, temperature, battery, RAM), each a value line, a small graph and a detail line.
-     Nothing in it can take the D-pad focus. -->
+<!-- Power menu stats strip: a thin row along the top edge of the screen, above the power
+     menu, with CPU, temperature, battery and RAM side by side, each a line of text and a small
+     graph under it. No card, only a dark fade. Nothing in it can take the D-pad focus. -->
 <com.android.systemui.globalactions.PowerMenuStatsPanel
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/global_actions_stats"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="@dimen/global_actions_console_item_margin"
-    android:layout_marginBottom="@dimen/global_actions_console_item_margin"
     android:background="@drawable/global_actions_stats_background"
     android:paddingHorizontal="@dimen/global_actions_stats_padding_horizontal"
-    android:paddingVertical="@dimen/global_actions_stats_padding_vertical"
+    android:paddingTop="@dimen/global_actions_stats_padding_top"
+    android:paddingBottom="@dimen/global_actions_stats_padding_bottom"
     android:orientation="horizontal"
     android:baselineAligned="false"
     android:focusable="false"

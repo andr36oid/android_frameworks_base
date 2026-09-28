@@ -17,7 +17,6 @@
 package com.android.systemui.globalactions;
 
 import android.content.Context;
-import android.content.res.TypedArray;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
@@ -28,12 +27,12 @@ import android.widget.TextView;
 
 import com.android.systemui.R;
 
-import java.util.Locale;
-
 /**
- * Small card above the power menu buttons with what the performance overlay shows: CPU load
- * and clock with the GPU clock, SoC temperature, battery level with voltage, current and
- * power, and RAM, each with a graph of about the last 10 minutes.
+ * A thin strip along the top of the screen above the power menu, in the look of the
+ * performance overlay: for CPU, temperature, battery and RAM a line of monospace text
+ * (label in cyan, value in white, or green, amber or red when it matters) with a small
+ * graph of about the last 10 minutes under it. No card and no frame, only a dark fade
+ * behind it.
  *
  * {@link PowerMenuStatsSampler} keeps the history in the background; while this view is
  * attached it updates every second. It never takes the focus, so the D-pad still moves
@@ -45,16 +44,21 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
     private Cell mTemp;
     private Cell mBattery;
     private Cell mRam;
-    private int mLabelColor;
+    private final int mLabelColor;
+    private final int mValueColor;
+    private final int mGoodColor;
+    private final int mOkColor;
+    private final int mBadColor;
     private float[] mBuffer = new float[PowerMenuStatsSampler.HISTORY_SIZE];
     private boolean mAttached;
 
     public PowerMenuStatsPanel(Context context, AttributeSet attrs) {
         super(context, attrs);
-        final TypedArray a = context.obtainStyledAttributes(
-                new int[] { android.R.attr.textColorSecondary });
-        mLabelColor = a.getColor(0, 0x99ffffff);
-        a.recycle();
+        mLabelColor = context.getColor(R.color.global_actions_stats_label);
+        mValueColor = context.getColor(R.color.global_actions_stats_value);
+        mGoodColor = context.getColor(R.color.global_actions_stats_good);
+        mOkColor = context.getColor(R.color.global_actions_stats_ok);
+        mBadColor = context.getColor(R.color.global_actions_stats_bad);
     }
 
     /** Whether the panel is switched on, see PowerMenuStatsSampler.PROP_ENABLED. */
@@ -77,7 +81,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         setFocusable(false);
         setFocusableInTouchMode(false);
         setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
-        // Placeholders until the first reading, so the height doesn't jump
+        // Placeholders until the first reading, so nothing jumps
         showNumbers(PowerMenuStatsReader.empty(), Float.NaN);
     }
 
@@ -132,98 +136,82 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         showNumbers(s, maxTemp);
     }
 
-    /**
-     * Draws one series. A NaN {@code min} or {@code max} follows the values, keeping at
-     * least {@code minRange} between the two. Returns the highest value, NaN if none.
-     */
+    /** Draws one series, see PowerMenuStatsFormat.scale. Returns the highest value. */
     private float showGraph(Cell cell, PowerMenuStatsHistory history, int series,
             int capacity, float min, float max, float minRange) {
         if (mBuffer.length < capacity) {
             mBuffer = new float[capacity];
         }
         final int count = history.copy(series, mBuffer);
-        float low = Float.NaN;
-        float high = Float.NaN;
-        for (int i = 0; i < count; i++) {
-            final float v = mBuffer[i];
-            if (!Float.isNaN(v)) {
-                low = Float.isNaN(low) || v < low ? v : low;
-                high = Float.isNaN(high) || v > high ? v : high;
-            }
-        }
-        final float scaleMin = !Float.isNaN(min) ? min
-                : Float.isNaN(low) ? 0f : (float) Math.floor(low - minRange / 5);
-        final float scaleMax = !Float.isNaN(max) ? max
-                : Math.max(scaleMin + minRange,
-                        Float.isNaN(high) ? 0f : high + (high - scaleMin) / 10);
-        cell.graph.setValues(mBuffer, count, capacity, scaleMin, scaleMax);
-        return high;
+        final float[] scale = PowerMenuStatsFormat.scale(mBuffer, count, min, max, minRange);
+        cell.graph.setValues(mBuffer, count, capacity, scale[0], scale[1]);
+        return PowerMenuStatsFormat.max(mBuffer, count);
     }
 
     private void showNumbers(PowerMenuStatsReader s, float maxTemp) {
-        final Context c = getContext();
-        // CPU: load and clock, GPU clock below
-        final SpannableStringBuilder cpu = label(R.string.global_actions_stats_cpu)
-                .append(s.cpuPercent < 0 ? "--" : s.cpuPercent + "%");
-        if (s.cpuMhz > 0) {
-            cpu.append(String.format(Locale.US, " %.2fGHz", s.cpuMhz / 1000f));
-        }
-        mCpu.value.setText(cpu);
-        mCpu.detail.setText(s.gpuMhz > 0
-                ? c.getString(R.string.global_actions_stats_gpu) + " " + s.gpuMhz + "MHz" : "");
-
-        // Temperature now, highest in the graph below
-        mTemp.value.setText(label(R.string.global_actions_stats_temp)
-                .append(Float.isNaN(s.tempC) ? "--" : Math.round(s.tempC) + "°C"));
-        mTemp.detail.setText(Float.isNaN(maxTemp) ? ""
-                : c.getString(R.string.global_actions_stats_temp_max,
-                        Math.round(maxTemp) + "°C"));
-
-        // Battery: level and power, voltage and current below; + charging, - discharging
-        final String sign = s.charging ? "+" : "-";
-        final SpannableStringBuilder battery = label(R.string.global_actions_stats_bat)
-                .append(s.batteryPercent < 0 ? "--" : s.batteryPercent + "%");
-        if (!Float.isNaN(s.batteryWatts)) {
-            battery.append(String.format(Locale.US, " %s%.1fW", sign, s.batteryWatts));
-        }
-        mBattery.value.setText(battery);
-        final StringBuilder electric = new StringBuilder();
-        if (!Float.isNaN(s.batteryVolts)) {
-            electric.append(String.format(Locale.US, "%.2fV", s.batteryVolts));
-        }
-        if (!Float.isNaN(s.batteryAmps)) {
-            if (electric.length() > 0) {
-                electric.append(' ');
-            }
-            electric.append(String.format(Locale.US, "%s%.2fA", sign, s.batteryAmps));
-        }
-        mBattery.detail.setText(electric);
-
-        // RAM: share in use, used and total below
-        mRam.value.setText(label(R.string.global_actions_stats_ram)
-                .append(s.ramPercent < 0 ? "--" : s.ramPercent + "%"));
-        mRam.detail.setText(s.ramTotalMb <= 0 ? ""
-                : s.ramUsedMb + "/" + s.ramTotalMb + "MB");
+        // CPU  23% 1.30GHz
+        show(mCpu, R.string.global_actions_stats_cpu,
+                PowerMenuStatsFormat.cpuValue(s.cpuPercent),
+                PowerMenuStatsFormat.LEVEL_NORMAL, PowerMenuStatsFormat.cpuExtra(s.cpuMhz));
+        // TEMP 52°C max 61 (the highest point of the graph)
+        show(mTemp, R.string.global_actions_stats_temp,
+                PowerMenuStatsFormat.tempValue(s.tempC),
+                PowerMenuStatsFormat.tempLevel(s.tempC), PowerMenuStatsFormat.tempExtra(maxTemp));
+        // BAT 87% -1.9W, + while charging
+        show(mBattery, R.string.global_actions_stats_bat,
+                PowerMenuStatsFormat.batteryValue(s.batteryPercent),
+                PowerMenuStatsFormat.batteryLevel(s.batteryPercent, s.charging),
+                PowerMenuStatsFormat.batteryExtra(s.batteryWatts, s.charging));
+        // RAM 61% 612/976M
+        show(mRam, R.string.global_actions_stats_ram,
+                PowerMenuStatsFormat.ramValue(s.ramPercent),
+                PowerMenuStatsFormat.ramLevel(s.ramPercent),
+                PowerMenuStatsFormat.ramExtra(s.ramUsedMb, s.ramTotalMb));
     }
 
-    /** The label in the secondary color and a space, the value follows in the primary one. */
-    private SpannableStringBuilder label(int label) {
-        final SpannableStringBuilder out = new SpannableStringBuilder(
-                getContext().getString(label));
-        out.setSpan(new ForegroundColorSpan(mLabelColor), 0, out.length(),
+    /**
+     * One metric the way the overlay writes it: the label in the label color, the value in
+     * the color of its level, the extra in the value color. The graph takes the level's
+     * color too, or the label color while the value is unremarkable.
+     */
+    private void show(Cell cell, int label, String value, int level, String extra) {
+        final int valueColor = colorOf(level);
+        final SpannableStringBuilder out = new SpannableStringBuilder();
+        append(out, getContext().getString(label) + " ", mLabelColor);
+        append(out, value, valueColor);
+        append(out, extra, mValueColor);
+        cell.text.setText(out);
+        cell.graph.setColor(level == PowerMenuStatsFormat.LEVEL_NORMAL
+                ? mLabelColor : valueColor);
+    }
+
+    private int colorOf(int level) {
+        switch (level) {
+            case PowerMenuStatsFormat.LEVEL_GOOD:
+                return mGoodColor;
+            case PowerMenuStatsFormat.LEVEL_OK:
+                return mOkColor;
+            case PowerMenuStatsFormat.LEVEL_BAD:
+                return mBadColor;
+            default:
+                return mValueColor;
+        }
+    }
+
+    private static void append(SpannableStringBuilder out, String text, int color) {
+        final int start = out.length();
+        out.append(text);
+        out.setSpan(new ForegroundColorSpan(color), start, out.length(),
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        return out.append(' ');
     }
 
     private static final class Cell {
-        final TextView value;
+        final TextView text;
         final PowerMenuSparklineView graph;
-        final TextView detail;
 
         Cell(View root) {
-            value = root.findViewById(R.id.global_actions_stats_value);
+            text = root.findViewById(R.id.global_actions_stats_value);
             graph = root.findViewById(R.id.global_actions_stats_graph);
-            detail = root.findViewById(R.id.global_actions_stats_detail);
         }
     }
 }
