@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Toast when Bluetooth is turned on without a USB Bluetooth adapter plugged in -->
+    <string name="bluetooth_no_usb_controller">Plug in a USB Bluetooth adapter to use Bluetooth</string>
+    <java-symbol type="string" name="bluetooth_no_usb_controller" />
+</resources>

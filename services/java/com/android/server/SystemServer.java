@@ -1502,6 +1502,10 @@ public final class SystemServer {
                 mSystemServiceManager.startServiceFromJar(
                         WIFI_SCANNING_SERVICE_CLASS, WIFI_APEX_SERVICE_JAR_PATH);
                 t.traceEnd();
+                // USB Wi-Fi adapters plugged in while Wi-Fi is switched on
+                t.traceBegin("StartUsbWifiHotplug");
+                mSystemServiceManager.startService(UsbWifiHotplugService.class);
+                t.traceEnd();
             }
 
             if (context.getPackageManager().hasSystemFeature(

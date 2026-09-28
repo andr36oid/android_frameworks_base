@@ -59,6 +59,7 @@ import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
+import android.os.UEventObserver;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.UserManagerInternal;
@@ -70,6 +71,7 @@ import android.util.FeatureFlagUtils;
 import android.util.Log;
 import android.util.Slog;
 import android.util.proto.ProtoOutputStream;
+import android.widget.Toast;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
@@ -77,6 +79,7 @@ import com.android.internal.util.DumpUtils;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.pm.UserRestrictionsUtils;
 
+import java.io.File;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -140,6 +143,14 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final int RESTORE_SETTING_TO_OFF = 0;
 
     private static final int MAX_ERROR_RESTART_RETRIES = 6;
+
+    // The controller is a USB dongle that can be missing or plugged in later.
+    // Starting the stack without one only crashes it, so only start it while a
+    // controller is registered, and start it when one is plugged in.
+    private static final boolean USB_HOTPLUG =
+            SystemProperties.getBoolean("ro.bluetooth.usb_hotplug", false);
+    // Gives the driver time to load the dongle's firmware.
+    private static final int CONTROLLER_ADDED_ENABLE_DELAY_MS = 1000;
     private static final int MAX_WAIT_FOR_ENABLE_DISABLE_RETRIES = 10;
 
     // Bluetooth persisted setting is off
@@ -229,6 +240,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
 
     private int mState;
     private final BluetoothHandler mHandler;
+    private UEventObserver mControllerObserver;
     private int mErrorRecoveryRetryCounter;
     private final int mSystemUiUid;
 
@@ -895,6 +907,10 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     + " mBinding = " + mBinding + " mState = "
                     + BluetoothAdapter.nameForState(mState));
         }
+        if (!hasBluetoothController()) {
+            Slog.w(TAG, "enableBle(): no Bluetooth controller plugged in");
+            return false;
+        }
         updateBleAppCount(token, true, packageName);
 
         if (mState == BluetoothAdapter.STATE_ON
@@ -1072,6 +1088,12 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         if (DBG) {
             Slog.d(TAG, "enable(" + packageName + "):  mBluetooth =" + mBluetooth + " mBinding = "
                     + mBinding + " mState = " + BluetoothAdapter.nameForState(mState));
+        }
+
+        if (!hasBluetoothController()) {
+            Slog.w(TAG, "enable(): no Bluetooth controller plugged in");
+            showNoControllerToast();
+            return false;
         }
 
         synchronized (mReceiver) {
@@ -1322,6 +1344,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         UserManagerInternal userManagerInternal =
                 LocalServices.getService(UserManagerInternal.class);
         userManagerInternal.addUserRestrictionsListener(mUserRestrictionsListener);
+        startControllerObserver();
         final boolean isBluetoothDisallowed = isBluetoothDisallowed();
         if (isBluetoothDisallowed) {
             return;
@@ -2261,6 +2284,14 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private void handleEnable(boolean quietMode) {
         mQuietEnable = quietMode;
 
+        if (!hasBluetoothController()) {
+            // Covers boot and restarts after the dongle was pulled out.
+            // startControllerObserver() turns Bluetooth on once one is back.
+            Slog.w(TAG, "handleEnable(): no Bluetooth controller plugged in, not starting");
+            mEnable = false;
+            return;
+        }
+
         try {
             mBluetoothLock.writeLock().lock();
             if ((mBluetooth == null) && (!mBinding)) {
@@ -2287,6 +2318,73 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             }
         } finally {
             mBluetoothLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Whether a Bluetooth controller (hciN) is registered. Always true unless
+     * ro.bluetooth.usb_hotplug is set.
+     */
+    private static boolean hasBluetoothController() {
+        if (!USB_HOTPLUG) {
+            return true;
+        }
+        final String[] names = new File("/sys/class/bluetooth").list();
+        if (names != null) {
+            for (String name : names) {
+                // hciN:M entries are connections, not controllers
+                if (name.startsWith("hci") && name.indexOf(':') < 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void showNoControllerToast() {
+        UiThread.getHandler().post(() -> Toast.makeText(mContext,
+                R.string.bluetooth_no_usb_controller, Toast.LENGTH_LONG).show());
+    }
+
+    /** Turns Bluetooth back on when a controller is plugged in, if it was left on. */
+    private void startControllerObserver() {
+        if (!USB_HOTPLUG || mControllerObserver != null) {
+            return;
+        }
+        mControllerObserver = new UEventObserver() {
+            @Override
+            public void onUEvent(UEventObserver.UEvent event) {
+                final String devPath = event.get("DEVPATH");
+                if (!"add".equals(event.get("ACTION")) || devPath == null
+                        || !devPath.matches(".*/hci[0-9]+")) {
+                    return;
+                }
+                mHandler.postDelayed(() -> onBluetoothControllerAdded(),
+                        CONTROLLER_ADDED_ENABLE_DELAY_MS);
+            }
+        };
+        mControllerObserver.startObserving("SUBSYSTEM=bluetooth");
+    }
+
+    private void onBluetoothControllerAdded() {
+        Slog.i(TAG, "Bluetooth controller plugged in");
+        if (isBluetoothDisallowed() || !isBluetoothPersistedStateOnBluetooth()) {
+            return;
+        }
+        try {
+            mBluetoothLock.readLock().lock();
+            if (mBluetooth != null || mBinding) {
+                return;
+            }
+        } finally {
+            mBluetoothLock.readLock().unlock();
+        }
+        Slog.i(TAG, "Bluetooth was left on, turning it back on");
+        synchronized (mReceiver) {
+            mQuietEnableExternal = false;
+            mEnableExternal = true;
+            sendEnableMsg(false, BluetoothProtoEnums.ENABLE_DISABLE_REASON_RESTARTED,
+                    mContext.getPackageName());
         }
     }
 
