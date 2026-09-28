@@ -94,6 +94,7 @@ import static org.lineageos.internal.util.DeviceKeysConstants.*;
 import android.annotation.Nullable;
 import android.app.ActivityManager;
 import android.app.ActivityManagerInternal;
+import android.app.ActivityThread;
 import android.app.ActivityTaskManager;
 import android.app.AlarmManager;
 import android.app.AppOpsManager;
@@ -656,6 +657,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // (KEY_HOMEPAGE, mapped to HOME by the key layout). A plain FN press still goes home.
     private static final int FN_SCAN_CODE = 172;
     private static final String FN_HOTKEYS_PROPERTY = "persist.sys.fn_hotkeys";
+    // How long FN must be held alone before the shortcut list shows, 0 turns the list off
+    private static final String FN_HELP_DELAY_PROPERTY = "persist.sys.fn_help_delay_ms";
+    private static final int FN_HELP_DELAY_DEFAULT_MS = 700;
+    // Screenshot shortcut while the list shows: wait until it is off the screen
+    private static final long FN_HELP_SCREENSHOT_DELAY_MS = 150;
     private static final String JOYMOUSE_ACTIVE_PROPERTY = "sys.joymouse.active";
     private static final String PERFORMANCE_PROFILE_PACKAGE = "org.andr36oid.cpuoverclock";
     private static final String ACTION_NEXT_PERFORMANCE_PROFILE =
@@ -675,10 +681,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // FN is held right now. Written on the input reader thread, which sees every key.
     private volatile boolean mFnDown;
     // A shortcut ran during this FN press, so letting go of FN must not go home.
-    private boolean mFnShortcutUsed;
+    // Also set by the shortcut list on the policy handler, hence volatile.
+    private volatile boolean mFnShortcutUsed;
     // Keys whose down ran a shortcut: their up is swallowed as well.
     private final SparseBooleanArray mFnShortcutKeys = new SparseBooleanArray();
     private Toast mFnToast;
+    // The FN shortcut list, made on first use. Only touched on mHandler.
+    private FnShortcutHelp mFnHelp;
+    private final Runnable mShowFnHelpRunnable = this::showFnHelp;
+    private final Runnable mHideFnHelpRunnable = this::hideFnHelp;
 
     SettingsObserver mSettingsObserver;
     ShortcutManager mShortcutManager;
@@ -3987,6 +3998,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         mFnShortcutKeys.put(keyCode, true);
         mFnShortcutUsed = true;
+        mHandler.removeCallbacks(mShowFnHelpRunnable);
         final boolean repeats = shortcut == FN_HOTKEY_BRIGHTNESS_UP
                 || shortcut == FN_HOTKEY_BRIGHTNESS_DOWN;
         if (repeatCount == 0 || (repeats && repeatCount % FN_REPEAT_DIVIDER == 0)) {
@@ -3997,6 +4009,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     private void runFnShortcut(int shortcut) {
+        // The list made its point once a shortcut is used, and must not end up in a screenshot
+        final boolean helpWasShowing = hideFnHelp();
         switch (shortcut) {
             case FN_HOTKEY_BRIGHTNESS_UP:
                 stepBrightnessFromFn(1);
@@ -4007,7 +4021,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case FN_HOTKEY_SCREENSHOT:
                 mScreenshotRunnable.setScreenshotType(TAKE_SCREENSHOT_FULLSCREEN);
                 mScreenshotRunnable.setScreenshotSource(SCREENSHOT_KEY_OTHER);
-                mScreenshotRunnable.run();
+                if (helpWasShowing) {
+                    mHandler.postDelayed(mScreenshotRunnable, FN_HELP_SCREENSHOT_DELAY_MS);
+                } else {
+                    mScreenshotRunnable.run();
+                }
                 break;
             case FN_HOTKEY_LAST_APP:
                 if (!ActionUtils.switchToLastApp(mContext, mCurrentUserId)) {
@@ -4099,6 +4117,112 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 ? (position / SLIDER_R) * (position / SLIDER_R)
                 : (float) Math.exp((position - SLIDER_C) / SLIDER_A) + SLIDER_B;
         return Math.max(0f, Math.min(1f, normalized / 12f));
+    }
+
+    /**
+     * Called on the input reader thread for every FN press and release: FN held alone for a
+     * moment shows the shortcut list, letting go hides it.
+     */
+    private void scheduleFnHelp(boolean down) {
+        mHandler.removeCallbacks(mShowFnHelpRunnable);
+        if (!down) {
+            mHandler.post(mHideFnHelpRunnable);
+            return;
+        }
+        if (!SystemProperties.getBoolean(FN_HOTKEYS_PROPERTY, true)) {
+            return;
+        }
+        final int delay = SystemProperties.getInt(FN_HELP_DELAY_PROPERTY,
+                FN_HELP_DELAY_DEFAULT_MS);
+        if (delay > 0) {
+            mHandler.postDelayed(mShowFnHelpRunnable, delay);
+        }
+    }
+
+    private void showFnHelp() {
+        if (!mFnDown || mFnShortcutUsed || keyguardOn() || !mPowerManager.isInteractive()) {
+            return;
+        }
+        final List<FnShortcutHelp.Row> rows = getFnHelpRows();
+        if (rows.isEmpty()) {
+            return;
+        }
+        if (mFnHelp == null) {
+            mFnHelp = new FnShortcutHelp(
+                    ActivityThread.currentActivityThread().getSystemUiContext());
+        }
+        // FN was held to look, so letting go must not go home
+        mFnShortcutUsed = true;
+        mFnHelp.show(rows, "Let go of FN to close. FN alone goes to the home screen.");
+    }
+
+    /** Returns true if the list was showing. */
+    private boolean hideFnHelp() {
+        mHandler.removeCallbacks(mShowFnHelpRunnable);
+        if (mFnHelp == null || !mFnHelp.isShowing()) {
+            return false;
+        }
+        mFnHelp.hide();
+        return true;
+    }
+
+    /** The shortcuts this build has, so the list never shows one that does nothing. */
+    private List<FnShortcutHelp.Row> getFnHelpRows() {
+        final List<FnShortcutHelp.Row> rows = new ArrayList<>();
+        if (getFnShortcut(KeyEvent.KEYCODE_VOLUME_UP) != FN_HOTKEY_NONE) {
+            rows.add(new FnShortcutHelp.Row("Screen brighter / darker", getBrightnessPercent(),
+                    "Vol+", "Vol\u2212"));
+        }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_START) != FN_HOTKEY_NONE) {
+            rows.add(new FnShortcutHelp.Row("Screenshot", null, "Start"));
+        }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_SELECT) != FN_HOTKEY_NONE) {
+            rows.add(new FnShortcutHelp.Row("Back to the last app", null, "Select"));
+        }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_Y) != FN_HOTKEY_NONE) {
+            rows.add(new FnShortcutHelp.Row("Quick Settings", null, "Y"));
+        }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_X) != FN_HOTKEY_NONE) {
+            rows.add(new FnShortcutHelp.Row("Joystick mouse",
+                    SystemProperties.getBoolean(JOYMOUSE_ACTIVE_PROPERTY, false) ? "on" : null,
+                    "X"));
+        }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_R1) != FN_HOTKEY_NONE
+                && hasFnReceiver("org.andr36oid.cpuoverclock",
+                        "org.andr36oid.cpuoverclock.action.NEXT_PROFILE")) {
+            rows.add(new FnShortcutHelp.Row("Next performance profile", null, "R1"));
+        }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_L2) != FN_HOTKEY_NONE
+                && hasFnReceiver("org.andr36oid.perfoverlay",
+                        "org.andr36oid.perfoverlay.action.TOGGLE")) {
+            rows.add(new FnShortcutHelp.Row("Performance overlay", null, "L2"));
+        }
+        return rows;
+    }
+
+    private boolean hasFnReceiver(String packageName, String action) {
+        final Intent intent = new Intent(action).setPackage(packageName);
+        final List<ResolveInfo> receivers = mContext.getPackageManager()
+                .queryBroadcastReceivers(intent, PackageManager.MATCH_SYSTEM_ONLY);
+        return receivers != null && !receivers.isEmpty();
+    }
+
+    private String getBrightnessPercent() {
+        final ContentResolver resolver = mContext.getContentResolver();
+        final float min = mPowerManager.getBrightnessConstraint(
+                PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_MINIMUM);
+        final float max = mPowerManager.getBrightnessConstraint(
+                PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_MAXIMUM);
+        if (max <= min) {
+            return null;
+        }
+        final float current = Settings.System.getFloatForUser(resolver,
+                Settings.System.SCREEN_BRIGHTNESS_FLOAT,
+                mPowerManager.getBrightnessConstraint(
+                        PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_DEFAULT),
+                UserHandle.USER_CURRENT_OR_SELF);
+        final float position = brightnessToSliderPosition((current - min) / (max - min));
+        return Math.round(position * 100) + "%";
     }
 
     private void showFnToast(String text) {
@@ -4419,6 +4543,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         if (isFnKey(event)) {
             mFnDown = down;
+            scheduleFnHelp(down);
         }
 
         // If screen is off then we treat the case where the keyguard is open but hidden
