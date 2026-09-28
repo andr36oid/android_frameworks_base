@@ -751,8 +751,10 @@ public class GlobalScreenshot implements ViewTreeObserver.OnComputeInternalInset
             mDismissAnimation.cancel();
         }
 
-        // The window is focusable by default
-        setWindowFocusable(true);
+        // Stock makes the window focusable so BACK can dismiss it. With a controller and no
+        // touchscreen that took every button away from the game for about 6 seconds after
+        // FN + Start. Keep input with the app; the preview goes away on its own.
+        setWindowFocusable(false);
 
         // Start the post-screenshot animation
         startAnimation(finisher, screenRect, screenInsets, showFlash);
