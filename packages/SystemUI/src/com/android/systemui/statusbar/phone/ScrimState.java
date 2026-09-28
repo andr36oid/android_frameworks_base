@@ -19,6 +19,7 @@ package com.android.systemui.statusbar.phone;
 import android.graphics.Color;
 import android.os.Trace;
 
+import com.android.settingslib.Utils;
 import com.android.systemui.dock.DockManager;
 import com.android.systemui.statusbar.ScrimView;
 import com.android.systemui.statusbar.notification.stack.StackStateAnimator;
@@ -204,7 +205,10 @@ public enum ScrimState {
             mAnimateChange = !mLaunchingAffordanceWithPreview;
 
             mFrontTint = Color.TRANSPARENT;
-            mBehindTint = Color.TRANSPARENT;
+            // The open shade is opaque, in the colour of the quick settings background
+            mBehindTint = mScrimBehind != null ? Utils.getColorAttrDefaultColor(
+                    mScrimBehind.getContext(), android.R.attr.colorBackgroundFloating)
+                    : Color.TRANSPARENT;
             mBubbleTint = Color.TRANSPARENT;
             mBlankScreen = false;
 
