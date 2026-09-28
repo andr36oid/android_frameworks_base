@@ -71,6 +71,7 @@ public class NotificationShadeWindowView extends FrameLayout {
     private ViewTreeObserver.OnPreDrawListener mFloatingToolbarPreDrawListener;
 
     private InteractionEventHandler mInteractionEventHandler;
+    private ShadeKeyNavigation mKeyNavigation;
 
     public NotificationShadeWindowView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -153,7 +154,15 @@ public class NotificationShadeWindowView extends FrameLayout {
             return true;
         }
 
+        if (mKeyNavigation != null && mKeyNavigation.onKeyBeforeViews(event)) {
+            return true;
+        }
+
         if (super.dispatchKeyEvent(event)) {
+            return true;
+        }
+
+        if (mKeyNavigation != null && mKeyNavigation.onKeyAfterViews(event)) {
             return true;
         }
 
@@ -162,6 +171,34 @@ public class NotificationShadeWindowView extends FrameLayout {
 
     protected void setInteractionEventHandler(InteractionEventHandler listener) {
         mInteractionEventHandler = listener;
+    }
+
+    void setKeyNavigation(ShadeKeyNavigation keyNavigation) {
+        mKeyNavigation = keyNavigation;
+    }
+
+    @Override
+    public boolean restoreDefaultFocus() {
+        if (mKeyNavigation != null && mKeyNavigation.restoreDefaultFocus()) {
+            return true;
+        }
+        return super.restoreDefaultFocus();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasWindowFocus) {
+        super.onWindowFocusChanged(hasWindowFocus);
+        if (mKeyNavigation != null) {
+            mKeyNavigation.onWindowFocusChanged(hasWindowFocus);
+        }
+    }
+
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+        super.dispatchDraw(canvas);
+        if (mKeyNavigation != null) {
+            mKeyNavigation.drawFocus(canvas);
+        }
     }
 
     @Override

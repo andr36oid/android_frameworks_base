@@ -1792,6 +1792,41 @@ public class NotificationStackScrollLayout extends ViewGroup implements ScrollAd
     }
 
     /**
+     * Scrolls so the part of {@code child} from {@code top} to {@code bottom} (relative to the
+     * top of the child) is in view, for moving through the notifications with a d-pad.
+     */
+    public void scrollToShow(ExpandableView child, int top, int bottom) {
+        int position = getPositionInLinearLayout(child);
+        int shelfHeight = mShelf != null ? mShelf.getIntrinsicHeight() : 0;
+        int visibleHeight = Math.max(0, mAmbientState.getInnerHeight() - shelfHeight);
+        int targetScroll = mOwnScrollY;
+        if (position + bottom > targetScroll + visibleHeight) {
+            targetScroll = position + bottom - visibleHeight;
+        }
+        if (position + top < targetScroll) {
+            targetScroll = position + top;
+        }
+        targetScroll = Math.max(0, Math.min(targetScroll, getScrollRange()));
+        if (targetScroll != mOwnScrollY) {
+            mScroller.startScroll(mScrollX, mOwnScrollY, 0, targetScroll - mOwnScrollY);
+            mDontReportNextOverScroll = true;
+            animateScroll();
+        }
+    }
+
+    /**
+     * Swipes a notification away as if the user had swiped it, for dismissing it with a
+     * button. Returns false if it can't be dismissed.
+     */
+    public boolean dismissChildFromKey(ExpandableView child) {
+        if (!canChildBeDismissed(child) || mDismissAllInProgress) {
+            return false;
+        }
+        mSwipeHelper.dismissChild(child, 0 /* velocity */, true /* useAccelerateInterpolator */);
+        return true;
+    }
+
+    /**
      * @return the scroll necessary to make the bottom edge of {@param v} align with the top of
      * the IME.
      */

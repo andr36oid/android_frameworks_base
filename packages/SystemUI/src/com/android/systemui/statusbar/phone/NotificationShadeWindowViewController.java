@@ -46,6 +46,7 @@ import com.android.systemui.statusbar.DragDownHelper;
 import com.android.systemui.statusbar.NotificationLockscreenUserManager;
 import com.android.systemui.statusbar.NotificationShadeDepthController;
 import com.android.systemui.statusbar.PulseExpansionHandler;
+import com.android.systemui.statusbar.StatusBarState;
 import com.android.systemui.statusbar.SuperStatusBarViewFactory;
 import com.android.systemui.statusbar.SysuiStatusBarStateController;
 import com.android.systemui.statusbar.notification.DynamicPrivacyController;
@@ -171,6 +172,11 @@ public class NotificationShadeWindowViewController {
     /** Inflates the {@link R.layout#status_bar_expanded} layout and sets it up. */
     public void setupExpandedStatusBar() {
         mStackScrollLayout = mView.findViewById(R.id.notification_stack_scroller);
+        mView.setKeyNavigation(new ShadeKeyNavigation(mView, mNotificationPanelViewController,
+                mStackScrollLayout, () -> mService != null
+                        && mStatusBarStateController.getState() != StatusBarState.KEYGUARD
+                        && !mService.isBouncerShowing()
+                        && !mNotificationPanelViewController.isFullyCollapsed()));
 
         TunerService.Tunable tunable = (key, newValue) -> {
             AmbientDisplayConfiguration configuration =
