@@ -666,6 +666,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final String PERFORMANCE_PROFILE_PACKAGE = "org.andr36oid.cpuoverclock";
     private static final String ACTION_NEXT_PERFORMANCE_PROFILE =
             "org.andr36oid.cpuoverclock.action.NEXT_PROFILE";
+    private static final String PERFORMANCE_OVERLAY_PACKAGE = "org.andr36oid.perfoverlay";
+    private static final String ACTION_TOGGLE_PERFORMANCE_OVERLAY =
+            "org.andr36oid.perfoverlay.action.TOGGLE";
     // Brightness steps along the brightness slider's curve, so each step looks alike
     private static final int FN_BRIGHTNESS_STEPS = 16;
     // Held shortcut keys repeat, only every n-th repeat counts
@@ -678,6 +681,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int FN_HOTKEY_TOGGLE_PANEL = 5;
     private static final int FN_HOTKEY_JOYSTICK_MOUSE = 6;
     private static final int FN_HOTKEY_PERFORMANCE_PROFILE = 7;
+    private static final int FN_HOTKEY_PERFORMANCE_OVERLAY = 8;
     // FN is held right now. Written on the input reader thread, which sees every key.
     private volatile boolean mFnDown;
     // A shortcut ran during this FN press, so letting go of FN must not go home.
@@ -3938,6 +3942,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 return FN_HOTKEY_JOYSTICK_MOUSE;
             case KeyEvent.KEYCODE_BUTTON_R1:
                 return FN_HOTKEY_PERFORMANCE_PROFILE;
+            case KeyEvent.KEYCODE_BUTTON_L2:
+                return FN_HOTKEY_PERFORMANCE_OVERLAY;
             default:
                 return FN_HOTKEY_NONE;
         }
@@ -4057,6 +4063,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         .setPackage(PERFORMANCE_PROFILE_PACKAGE)
                         .addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
                 mContext.sendBroadcastAsUser(intent, UserHandle.SYSTEM);
+                break;
+            case FN_HOTKEY_PERFORMANCE_OVERLAY:
+                // The performance overlay app shows or hides its FPS box
+                mContext.sendBroadcastAsUser(new Intent(ACTION_TOGGLE_PERFORMANCE_OVERLAY)
+                        .setPackage(PERFORMANCE_OVERLAY_PACKAGE)
+                        .addFlags(Intent.FLAG_RECEIVER_FOREGROUND), UserHandle.SYSTEM);
                 break;
         }
     }
