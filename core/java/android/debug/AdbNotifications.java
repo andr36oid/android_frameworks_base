@@ -84,6 +84,8 @@ public final class AdbNotifications {
                 .setSmallIcon(com.android.internal.R.drawable.stat_sys_adb)
                 .setWhen(0)
                 .setOngoing(true)
+                // Small screen: don't keep covering the top of it for as long as adb is on
+                .setTimeoutAfter(30 * 1000)
                 .setTicker(title)
                 .setDefaults(0)  // please be quiet
                 .setColor(context.getColor(
