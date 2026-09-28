@@ -673,6 +673,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final String PERFORMANCE_OVERLAY_PACKAGE = "org.andr36oid.perfoverlay";
     private static final String ACTION_TOGGLE_PERFORMANCE_OVERLAY =
             "org.andr36oid.perfoverlay.action.TOGGLE";
+    private static final String TOUCH_CONTROLS_PACKAGE = "org.andr36oid.touchmapper";
+    private static final String ACTION_EDIT_TOUCH_CONTROLS =
+            "org.andr36oid.touchmapper.action.EDIT";
     // Brightness steps along the brightness slider's curve, so each step looks alike
     private static final int FN_BRIGHTNESS_STEPS = 16;
     // Held shortcut keys repeat, only every n-th repeat counts
@@ -686,6 +689,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int FN_HOTKEY_JOYSTICK_MOUSE = 6;
     private static final int FN_HOTKEY_PERFORMANCE_PROFILE = 7;
     private static final int FN_HOTKEY_PERFORMANCE_OVERLAY = 8;
+    private static final int FN_HOTKEY_TOUCH_CONTROLS = 9;
     // FN is held right now. Written on the input reader thread, which sees every key.
     private volatile boolean mFnDown;
     // A shortcut ran during this FN press, so letting go of FN must not go home.
@@ -3948,6 +3952,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 return FN_HOTKEY_PERFORMANCE_PROFILE;
             case KeyEvent.KEYCODE_BUTTON_L2:
                 return FN_HOTKEY_PERFORMANCE_OVERLAY;
+            case KeyEvent.KEYCODE_BUTTON_L1:
+                return FN_HOTKEY_TOUCH_CONTROLS;
             default:
                 return FN_HOTKEY_NONE;
         }
@@ -4072,6 +4078,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // The performance overlay app shows or hides its FPS box
                 mContext.sendBroadcastAsUser(new Intent(ACTION_TOGGLE_PERFORMANCE_OVERLAY)
                         .setPackage(PERFORMANCE_OVERLAY_PACKAGE)
+                        .addFlags(Intent.FLAG_RECEIVER_FOREGROUND), UserHandle.SYSTEM);
+                break;
+            case FN_HOTKEY_TOUCH_CONTROLS:
+                // Touch controls opens its editor on top of the app in front
+                mContext.sendBroadcastAsUser(new Intent(ACTION_EDIT_TOUCH_CONTROLS)
+                        .setPackage(TOUCH_CONTROLS_PACKAGE)
                         .addFlags(Intent.FLAG_RECEIVER_FOREGROUND), UserHandle.SYSTEM);
                 break;
         }
@@ -4212,6 +4224,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 && hasFnReceiver("org.andr36oid.perfoverlay",
                         "org.andr36oid.perfoverlay.action.TOGGLE")) {
             rows.add(new FnShortcutHelp.Row("Performance overlay", null, "L2"));
+        }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_L1) != FN_HOTKEY_NONE
+                && hasFnReceiver(TOUCH_CONTROLS_PACKAGE, ACTION_EDIT_TOUCH_CONTROLS)) {
+            rows.add(new FnShortcutHelp.Row("Touch controls editor", null, "L1"));
         }
         return rows;
     }
