@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The andr36oid Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<!-- Power menu stats panel: one card above the buttons with four cells side by side
+     (CPU, temperature, battery, RAM), each a value line, a small graph and a detail line.
+     Nothing in it can take the D-pad focus. -->
+<com.android.systemui.globalactions.PowerMenuStatsPanel
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/global_actions_stats"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="@dimen/global_actions_console_item_margin"
+    android:layout_marginBottom="@dimen/global_actions_console_item_margin"
+    android:background="@drawable/global_actions_stats_background"
+    android:paddingHorizontal="@dimen/global_actions_stats_padding_horizontal"
+    android:paddingVertical="@dimen/global_actions_stats_padding_vertical"
+    android:orientation="horizontal"
+    android:baselineAligned="false"
+    android:focusable="false"
+    android:focusableInTouchMode="false"
+    android:descendantFocusability="blocksDescendants"
+    android:contentDescription="@string/global_actions_stats_description"
+    android:visibility="gone">
+
+    <include
+        android:id="@+id/global_actions_stats_cpu"
+        layout="@layout/global_actions_console_stats_cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" />
+
+    <include
+        android:id="@+id/global_actions_stats_temp"
+        layout="@layout/global_actions_console_stats_cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="@dimen/global_actions_stats_cell_gap" />
+
+    <include
+        android:id="@+id/global_actions_stats_bat"
+        layout="@layout/global_actions_console_stats_cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="@dimen/global_actions_stats_cell_gap" />
+
+    <include
+        android:id="@+id/global_actions_stats_ram"
+        layout="@layout/global_actions_console_stats_cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="@dimen/global_actions_stats_cell_gap" />
+
+</com.android.systemui.globalactions.PowerMenuStatsPanel>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The andr36oid Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Power menu stats panel (GlobalActions console layout): four small graphs above the
+         buttons. ro.andr36oid.power_menu_stats offers it, persist.sys.power_menu_stats=0 hides it. -->
+    <dimen name="global_actions_stats_padding_horizontal">10dp</dimen>
+    <dimen name="global_actions_stats_padding_vertical">5dp</dimen>
+    <dimen name="global_actions_stats_cell_gap">10dp</dimen>
+    <dimen name="global_actions_stats_graph_height">18dp</dimen>
+    <dimen name="global_actions_stats_text_size">11sp</dimen>
+    <!-- Space above and below the whole power menu while the panel shows, instead of
+         global_actions_console_side_margin, so the buttons still fit a 480 px tall screen -->
+    <dimen name="global_actions_stats_menu_padding">8dp</dimen>
+
+    <!-- Power menu stats panel labels, the same as the performance overlay's [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_cpu">CPU</string>
+    <!-- [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_gpu">GPU</string>
+    <!-- Temperature of the chip [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_temp">TEMP</string>
+    <!-- Battery [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_bat">BAT</string>
+    <!-- Memory [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_ram">RAM</string>
+    <!-- Below the temperature graph: the highest temperature it shows [CHAR LIMIT=12] -->
+    <string name="global_actions_stats_temp_max">max <xliff:g id="temperature" example="61°C">%1$s</xliff:g></string>
+    <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
+    <string name="global_actions_stats_description">System stats of the last 10 minutes</string>
+</resources>

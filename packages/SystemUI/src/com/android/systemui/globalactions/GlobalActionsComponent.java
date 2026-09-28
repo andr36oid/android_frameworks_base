@@ -69,6 +69,8 @@ public class GlobalActionsComponent extends SystemUI implements Callbacks, Globa
                 .build();
         mPlugin = mExtension.get();
         mCommandQueue.addCallback(this);
+        // History for the graphs of the power menu stats panel
+        PowerMenuStatsPanel.startSampling(mContext);
     }
 
     private void onExtensionCallback(GlobalActions newPlugin) {

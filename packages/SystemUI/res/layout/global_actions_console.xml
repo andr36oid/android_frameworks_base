@@ -53,6 +53,9 @@
           android:clipChildren="false"
           android:clipToPadding="false">
 
+        <!-- System stats with small graphs above the buttons, hidden unless switched on -->
+        <include layout="@layout/global_actions_console_stats" />
+
         <!-- GlobalActionsConsoleLayout adds one container per section in here -->
         <LinearLayout
             android:id="@android:id/list"
