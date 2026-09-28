@@ -114,6 +114,9 @@ final class AppNotRespondingDialog extends BaseErrorDialog implements View.OnCli
         close.setOnClickListener(this);
         final TextView wait = findViewById(com.android.internal.R.id.aerr_wait);
         wait.setOnClickListener(this);
+        // Start the d-pad on "Wait": the first button is "Close app", and a player still
+        // pressing A in a frozen game would otherwise kill it.
+        wait.requestFocus();
 
         findViewById(com.android.internal.R.id.customPanel).setVisibility(View.VISIBLE);
     }
