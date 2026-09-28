@@ -172,6 +172,7 @@ import android.util.MutableBoolean;
 import android.util.PrintWriterPrinter;
 import android.util.Slog;
 import android.util.SparseArray;
+import android.util.SparseBooleanArray;
 import android.util.proto.ProtoOutputStream;
 import android.view.Display;
 import android.view.HapticFeedbackConstants;
@@ -193,6 +194,7 @@ import android.view.accessibility.AccessibilityManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
 import android.view.animation.AnimationUtils;
+import android.widget.Toast;
 import android.view.autofill.AutofillManagerInternal;
 
 import com.android.internal.R;
@@ -649,6 +651,34 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     /* The number of steps between min and max brightness */
     private static final int BRIGHTNESS_STEPS = 10;
+
+    // Console shortcuts: FN held together with another button. FN is the handhelds' Home key
+    // (KEY_HOMEPAGE, mapped to HOME by the key layout). A plain FN press still goes home.
+    private static final int FN_SCAN_CODE = 172;
+    private static final String FN_HOTKEYS_PROPERTY = "persist.sys.fn_hotkeys";
+    private static final String JOYMOUSE_ACTIVE_PROPERTY = "sys.joymouse.active";
+    private static final String PERFORMANCE_PROFILE_PACKAGE = "org.andr36oid.cpuoverclock";
+    private static final String ACTION_NEXT_PERFORMANCE_PROFILE =
+            "org.andr36oid.cpuoverclock.action.NEXT_PROFILE";
+    // Brightness steps along the brightness slider's curve, so each step looks alike
+    private static final int FN_BRIGHTNESS_STEPS = 16;
+    // Held shortcut keys repeat, only every n-th repeat counts
+    private static final int FN_REPEAT_DIVIDER = 4;
+    private static final int FN_HOTKEY_NONE = 0;
+    private static final int FN_HOTKEY_BRIGHTNESS_UP = 1;
+    private static final int FN_HOTKEY_BRIGHTNESS_DOWN = 2;
+    private static final int FN_HOTKEY_SCREENSHOT = 3;
+    private static final int FN_HOTKEY_LAST_APP = 4;
+    private static final int FN_HOTKEY_TOGGLE_PANEL = 5;
+    private static final int FN_HOTKEY_JOYSTICK_MOUSE = 6;
+    private static final int FN_HOTKEY_PERFORMANCE_PROFILE = 7;
+    // FN is held right now. Written on the input reader thread, which sees every key.
+    private volatile boolean mFnDown;
+    // A shortcut ran during this FN press, so letting go of FN must not go home.
+    private boolean mFnShortcutUsed;
+    // Keys whose down ran a shortcut: their up is swallowed as well.
+    private final SparseBooleanArray mFnShortcutKeys = new SparseBooleanArray();
+    private Toast mFnToast;
 
     SettingsObserver mSettingsObserver;
     ShortcutManager mShortcutManager;
@@ -3092,6 +3122,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mPendingCapsLockToggle = false;
         }
 
+        if (interceptFnShortcut(event, keyguardOn)) {
+            return -1;
+        }
+
         // First we always handle the home key here, so applications
         // can never break it, although if keyguard is on, we do let
         // it handle it, because that gives us the correct 5 second
@@ -3870,6 +3904,211 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
+    /** FN is the built-in Home key, not some other key the user remapped to Home. */
+    private static boolean isFnKey(KeyEvent event) {
+        return event.getKeyCode() == KeyEvent.KEYCODE_HOME
+                && event.getScanCode() == FN_SCAN_CODE;
+    }
+
+    private static int getFnShortcut(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_VOLUME_UP:
+                return FN_HOTKEY_BRIGHTNESS_UP;
+            case KeyEvent.KEYCODE_VOLUME_DOWN:
+                return FN_HOTKEY_BRIGHTNESS_DOWN;
+            case KeyEvent.KEYCODE_BUTTON_START:
+                return FN_HOTKEY_SCREENSHOT;
+            case KeyEvent.KEYCODE_BUTTON_SELECT:
+                return FN_HOTKEY_LAST_APP;
+            case KeyEvent.KEYCODE_BUTTON_Y:
+                return FN_HOTKEY_TOGGLE_PANEL;
+            case KeyEvent.KEYCODE_BUTTON_X:
+                // X, as joyMouse passes it through in mouse mode, so this also switches back
+                return FN_HOTKEY_JOYSTICK_MOUSE;
+            case KeyEvent.KEYCODE_BUTTON_R1:
+                return FN_HOTKEY_PERFORMANCE_PROFILE;
+            default:
+                return FN_HOTKEY_NONE;
+        }
+    }
+
+    /**
+     * Runs the console shortcut for a button pressed while FN is held. Returns true if the key
+     * belongs to a shortcut and must not reach the app. Called on the dispatcher thread, in
+     * the order the keys were pressed.
+     */
+    private boolean interceptFnShortcut(KeyEvent event, boolean keyguardOn) {
+        final int keyCode = event.getKeyCode();
+        final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+        final int repeatCount = event.getRepeatCount();
+
+        if (isFnKey(event)) {
+            if (down && repeatCount == 0) {
+                mFnShortcutUsed = false;
+            } else if (mFnShortcutUsed) {
+                // Mark the press as used, like a long press does: no home, no long press action.
+                final DisplayHomeButtonHandler handler =
+                        mDisplayHomeButtonHandlers.get(event.getDisplayId());
+                if (handler != null) {
+                    handler.mHomeConsumed = true;
+                }
+                if (!down) {
+                    mFnShortcutUsed = false;
+                }
+            }
+            return false;
+        }
+
+        if (!down) {
+            if (mFnShortcutKeys.get(keyCode)) {
+                mFnShortcutKeys.delete(keyCode);
+                return true;
+            }
+            return false;
+        }
+        if (repeatCount == 0) {
+            // A leftover from a shortcut whose up never arrived
+            mFnShortcutKeys.delete(keyCode);
+        }
+
+        final int shortcut = getFnShortcut(keyCode);
+        if (shortcut == FN_HOTKEY_NONE || keyguardOn
+                || (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0) {
+            return false;
+        }
+        if (repeatCount == 0) {
+            if (!mFnDown || !SystemProperties.getBoolean(FN_HOTKEYS_PROPERTY, true)) {
+                return false;
+            }
+        } else if (!mFnShortcutKeys.get(keyCode)) {
+            // Only repeats of a key that started a shortcut
+            return false;
+        }
+
+        mFnShortcutKeys.put(keyCode, true);
+        mFnShortcutUsed = true;
+        final boolean repeats = shortcut == FN_HOTKEY_BRIGHTNESS_UP
+                || shortcut == FN_HOTKEY_BRIGHTNESS_DOWN;
+        if (repeatCount == 0 || (repeats && repeatCount % FN_REPEAT_DIVIDER == 0)) {
+            // Post to main thread to avoid blocking input pipeline.
+            mHandler.post(() -> runFnShortcut(shortcut));
+        }
+        return true;
+    }
+
+    private void runFnShortcut(int shortcut) {
+        switch (shortcut) {
+            case FN_HOTKEY_BRIGHTNESS_UP:
+                stepBrightnessFromFn(1);
+                break;
+            case FN_HOTKEY_BRIGHTNESS_DOWN:
+                stepBrightnessFromFn(-1);
+                break;
+            case FN_HOTKEY_SCREENSHOT:
+                mScreenshotRunnable.setScreenshotType(TAKE_SCREENSHOT_FULLSCREEN);
+                mScreenshotRunnable.setScreenshotSource(SCREENSHOT_KEY_OTHER);
+                mScreenshotRunnable.run();
+                break;
+            case FN_HOTKEY_LAST_APP:
+                if (!ActionUtils.switchToLastApp(mContext, mCurrentUserId)) {
+                    showFnToast("No other app to switch to");
+                }
+                break;
+            case FN_HOTKEY_TOGGLE_PANEL:
+                final IStatusBarService statusBar = getStatusBarService();
+                if (statusBar != null) {
+                    try {
+                        statusBar.togglePanel();
+                    } catch (RemoteException e) {
+                        // do nothing.
+                    }
+                }
+                break;
+            case FN_HOTKEY_JOYSTICK_MOUSE:
+                // joyMouse follows the property and shows its own message
+                final boolean active = SystemProperties.getBoolean(JOYMOUSE_ACTIVE_PROPERTY, false);
+                try {
+                    SystemProperties.set(JOYMOUSE_ACTIVE_PROPERTY, active ? "0" : "1");
+                } catch (RuntimeException e) {
+                    Slog.w(TAG, "Couldn't switch the joystick mouse", e);
+                }
+                break;
+            case FN_HOTKEY_PERFORMANCE_PROFILE:
+                // Settings > CPU overclock picks the next profile and says which one it is
+                final Intent intent = new Intent(ACTION_NEXT_PERFORMANCE_PROFILE)
+                        .setPackage(PERFORMANCE_PROFILE_PACKAGE)
+                        .addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+                mContext.sendBroadcastAsUser(intent, UserHandle.SYSTEM);
+                break;
+        }
+    }
+
+    /** Steps the screen brightness up or down by one of 16 even looking steps. */
+    private void stepBrightnessFromFn(int direction) {
+        final ContentResolver resolver = mContext.getContentResolver();
+        if (Settings.System.getIntForUser(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL, UserHandle.USER_CURRENT_OR_SELF)
+                != Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL) {
+            Settings.System.putIntForUser(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
+                    UserHandle.USER_CURRENT_OR_SELF);
+        }
+        final float min = mPowerManager.getBrightnessConstraint(
+                PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_MINIMUM);
+        final float max = mPowerManager.getBrightnessConstraint(
+                PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_MAXIMUM);
+        if (max <= min) {
+            return;
+        }
+        final float current = Settings.System.getFloatForUser(resolver,
+                Settings.System.SCREEN_BRIGHTNESS_FLOAT,
+                mPowerManager.getBrightnessConstraint(
+                        PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_DEFAULT),
+                UserHandle.USER_CURRENT_OR_SELF);
+
+        // Step on the slider's position rather than the raw value, so the dark end gets
+        // as many steps as the bright one.
+        final float position = brightnessToSliderPosition((current - min) / (max - min));
+        float step = Math.round(position * FN_BRIGHTNESS_STEPS) + direction;
+        step = Math.max(0, Math.min(FN_BRIGHTNESS_STEPS, step));
+        final float newPosition = step / FN_BRIGHTNESS_STEPS;
+        final float brightness = Math.max(min, Math.min(max,
+                min + sliderPositionToBrightness(newPosition) * (max - min)));
+
+        Settings.System.putFloatForUser(resolver, Settings.System.SCREEN_BRIGHTNESS_FLOAT,
+                brightness, UserHandle.USER_CURRENT_OR_SELF);
+        showFnToast("Brightness " + Math.round(newPosition * 100) + "%");
+    }
+
+    // The brightness slider's curve (settingslib BrightnessUtils), on 0..1 for both sides.
+    private static final float SLIDER_R = 0.5f;
+    private static final float SLIDER_A = 0.17883277f;
+    private static final float SLIDER_B = 0.28466892f;
+    private static final float SLIDER_C = 0.55991073f;
+
+    private static float brightnessToSliderPosition(float brightness) {
+        final float normalized = Math.max(0f, Math.min(1f, brightness)) * 12f;
+        final float position = normalized <= 1f
+                ? SLIDER_R * (float) Math.sqrt(normalized)
+                : SLIDER_A * (float) Math.log(normalized - SLIDER_B) + SLIDER_C;
+        return Math.max(0f, Math.min(1f, position));
+    }
+
+    private static float sliderPositionToBrightness(float position) {
+        final float normalized = position <= SLIDER_R
+                ? (position / SLIDER_R) * (position / SLIDER_R)
+                : (float) Math.exp((position - SLIDER_C) / SLIDER_A) + SLIDER_B;
+        return Math.max(0f, Math.min(1f, normalized / 12f));
+    }
+
+    private void showFnToast(String text) {
+        if (mFnToast != null) {
+            mFnToast.cancel();
+        }
+        mFnToast = Toast.makeText(mContext, text, Toast.LENGTH_SHORT);
+        mFnToast.show();
+    }
+
     private void toggleRecentApps() {
         mPreloadedRecentApps = false; // preloading no longer needs to be canceled
         StatusBarManagerInternal statusbar = getStatusBarManagerInternal();
@@ -4177,6 +4416,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final int keyCode = event.getKeyCode();
         final int displayId = event.getDisplayId();
         final boolean isInjected = (policyFlags & WindowManagerPolicy.FLAG_INJECTED) != 0;
+
+        if (isFnKey(event)) {
+            mFnDown = down;
+        }
 
         // If screen is off then we treat the case where the keyguard is open but hidden
         // the same as if it were open and in front.
