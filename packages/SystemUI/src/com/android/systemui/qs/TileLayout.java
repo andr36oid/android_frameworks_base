@@ -48,6 +48,8 @@ public class TileLayout extends ViewGroup implements QSTileLayout {
     public TileLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
         setFocusableInTouchMode(true);
+        // With a d-pad the tiles take focus, not the grid around them
+        setDescendantFocusability(FOCUS_AFTER_DESCENDANTS);
         mLessRows = (Settings.System.getInt(context.getContentResolver(), "qs_less_rows", 0) != 0);
         updateResources();
 

@@ -1044,6 +1044,20 @@ public class NotificationPanelViewController extends PanelViewController {
         flingSettings(0 /* vel */, animateAway ? FLING_HIDE : FLING_COLLAPSE);
     }
 
+    /**
+     * Opens the full quick settings or closes them back to the quick row while the shade is
+     * open, for game controller buttons. Returns false if there is nothing to do.
+     */
+    public boolean flingQsFromKey(boolean expand, Runnable onFinishRunnable) {
+        if (isFullyCollapsed() || mQsExpansionAnimator != null || (expand && !mQsExpansionEnabled)
+                || expand == mQsExpanded) {
+            return false;
+        }
+        flingSettings(0 /* vel */, expand ? FLING_EXPAND : FLING_COLLAPSE, onFinishRunnable,
+                true /* isClick */);
+        return true;
+    }
+
     public void expandWithQs() {
         if (mQsExpansionEnabled) {
             mQsExpandImmediate = true;
