@@ -3249,6 +3249,8 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             mAppSwitcherAdapter = adapter;
             mGlobalActionsLayout.setAdapter(adapter);
             mGlobalActionsLayout.updateList();
+            // Leave the room to the apps
+            updateStatsPanel(false);
         }
 
         private boolean hideAppSwitcher() {
@@ -3258,6 +3260,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             mAppSwitcherAdapter = null;
             mGlobalActionsLayout.setAdapter(mAdapter);
             mGlobalActionsLayout.updateList();
+            updateStatsPanel(true);
             // Put the focus back on the app switcher tile
             for (int i = 0; i < mAdapter.getCount(); i++) {
                 if (mAdapter.getItem(i) instanceof AppSwitcherAction) {
@@ -3297,6 +3300,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
                     com.android.systemui.R.id.global_actions_lock_message_container);
             mLockMessage = requireViewById(com.android.systemui.R.id.global_actions_lock_message);
             updateKillAppButton();
+            updateStatsPanel(true);
 
             View overflowButton = findViewById(
                     com.android.systemui.R.id.global_actions_overflow_button);
@@ -3640,6 +3644,26 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
                     mKillAppLabel));
             button.setOnClickListener(v -> mKillApp.run());
             button.setVisibility(View.VISIBLE);
+        }
+
+        /**
+         * Shows the stats panel above the buttons if it is switched on and {@code show}.
+         * While it shows, the menu gets less space above and below, so the buttons still fit
+         * a 480 px tall screen.
+         */
+        private void updateStatsPanel(boolean show) {
+            final View panel = findViewById(com.android.systemui.R.id.global_actions_stats);
+            final View root = findViewById(com.android.systemui.R.id.global_actions_grid_root);
+            if (panel == null || root == null) {
+                return;
+            }
+            final boolean visible = show && PowerMenuStatsPanel.isSwitchedOn();
+            panel.setVisibility(visible ? View.VISIBLE : View.GONE);
+            final int padding = mContext.getResources().getDimensionPixelSize(visible
+                    ? com.android.systemui.R.dimen.global_actions_stats_menu_padding
+                    : com.android.systemui.R.dimen.global_actions_console_side_margin);
+            root.setPaddingRelative(root.getPaddingStart(), padding, root.getPaddingEnd(),
+                    padding);
         }
 
         private static class ResetOrientationData {
