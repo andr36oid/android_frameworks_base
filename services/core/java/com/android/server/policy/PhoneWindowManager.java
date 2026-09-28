@@ -93,19 +93,23 @@ import static org.lineageos.internal.util.DeviceKeysConstants.*;
 
 import android.annotation.Nullable;
 import android.app.ActivityManager;
+import android.app.ActivityOptions;
 import android.app.ActivityManagerInternal;
 import android.app.ActivityThread;
 import android.app.ActivityTaskManager;
 import android.app.AlarmManager;
 import android.app.AppOpsManager;
+import android.app.IActivityTaskManager;
 import android.app.IUiModeManager;
 import android.app.PendingIntent;
 import android.app.NotificationManager;
 import android.app.ProgressDialog;
 import android.app.SearchManager;
 import android.app.UiModeManager;
+import android.app.WindowConfiguration;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -1872,7 +1876,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mPowerManager.goToSleep(SystemClock.uptimeMillis());
                 break;
             case LAST_APP:
-                ActionUtils.switchToLastApp(mContext, mCurrentUserId);
+                switchToLastApp();
                 break;
             case SPLIT_SCREEN:
                 toggleSplitScreen();
@@ -4034,7 +4038,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 }
                 break;
             case FN_HOTKEY_LAST_APP:
-                if (!ActionUtils.switchToLastApp(mContext, mCurrentUserId)) {
+                if (!switchToLastApp()) {
                     showFnToast("No other app to switch to");
                 }
                 break;
@@ -4235,6 +4239,44 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 UserHandle.USER_CURRENT_OR_SELF);
         final float position = brightnessToSliderPosition((current - min) / (max - min));
         return Math.round(position * 100) + "%";
+    }
+
+    /**
+     * Brings back the app used before the one on screen. Lineage's ActionUtils version skips
+     * the newest recent task and only sees tasks that would show in Recents, so games started
+     * with FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS (as frontends like Daijishou do) are never
+     * found. Take the newest task that isn't on screen, home or SystemUI instead.
+     */
+    private boolean switchToLastApp() {
+        try {
+            final IActivityTaskManager atm = ActivityTaskManager.getService();
+            final List<ActivityManager.RunningTaskInfo> running = atm.getTasks(1);
+            final int topTaskId = running.isEmpty() ? -1 : running.get(0).taskId;
+            final List<ActivityManager.RecentTaskInfo> tasks = atm.getRecentTasks(10,
+                    ActivityManager.RECENT_WITH_EXCLUDED
+                            | ActivityManager.RECENT_IGNORE_UNAVAILABLE,
+                    mCurrentUserId).getList();
+            for (ActivityManager.RecentTaskInfo task : tasks) {
+                if (task.taskId == topTaskId || task.baseIntent == null) {
+                    continue;
+                }
+                final ComponentName component = task.origActivity != null
+                        ? task.origActivity : task.baseIntent.getComponent();
+                if (component == null
+                        || task.configuration.windowConfiguration.getActivityType()
+                                == WindowConfiguration.ACTIVITY_TYPE_HOME
+                        || "com.android.systemui".equals(component.getPackageName())) {
+                    continue;
+                }
+                atm.startActivityFromRecents(task.taskId, ActivityOptions.makeCustomAnimation(
+                        mContext, org.lineageos.platform.internal.R.anim.last_app_in,
+                        org.lineageos.platform.internal.R.anim.last_app_out).toBundle());
+                return true;
+            }
+        } catch (RemoteException | RuntimeException e) {
+            Slog.w(TAG, "Could not switch to the last app", e);
+        }
+        return false;
     }
 
     private void showFnToast(String text) {
