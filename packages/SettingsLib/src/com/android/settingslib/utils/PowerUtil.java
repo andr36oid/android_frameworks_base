@@ -211,12 +211,14 @@ public class PowerUtil {
         }
     }
 
-    // andr36oid: a duration rounded to 15 minutes, or to 5 minutes under an hour.
+    // andr36oid: a duration rounded to 15 minutes, or to 5 minutes under an hour. Never
+    // below 5 minutes: the short QS text also gets estimates under 2.5 min ("0 min").
     private static CharSequence getRoundedDurationString(Context context, long drainTimeMs) {
         final long threshold = drainTimeMs >= ONE_HOUR_MILLIS
                 ? FIFTEEN_MINUTES_MILLIS : FIVE_MINUTES_MILLIS;
         return StringUtil.formatElapsedTime(context,
-                roundTimeToNearestThreshold(drainTimeMs, threshold), false /* withSeconds */);
+                Math.max(FIVE_MINUTES_MILLIS, roundTimeToNearestThreshold(drainTimeMs, threshold)),
+                false /* withSeconds */);
     }
 
     private static CharSequence getDateTimeStringFromMs(Context context, long drainTimeMs) {
