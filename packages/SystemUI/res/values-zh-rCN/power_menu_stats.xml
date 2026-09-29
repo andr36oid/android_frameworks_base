@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Power menu stats panel labels, the same as the performance overlay's [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_cpu">CPU</string>
+    <!-- Temperature of the chip [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_temp">温度</string>
+    <!-- Battery [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_bat">电量</string>
+    <!-- Memory [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_ram">RAM</string>
+    <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
+    <string name="global_actions_stats_description">过去 10 分钟的系统状态</string>
+</resources>
