@@ -465,6 +465,13 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
     }
 
     private boolean shouldShowUI(int flags) {
+        // Check the flags first. This runs on the VolumeDialogControllerImpl thread, and
+        // getting the lazy StatusBar here before the main thread has created it builds it
+        // on this thread and crashes SystemUI (at boot, on audio device changes, flags 0).
+        // Both branches below return false in this case anyway.
+        if ((flags & AudioManager.FLAG_SHOW_UI) == 0 || !mShowVolumeDialog) {
+            return false;
+        }
         // if status bar isn't null, check if phone is in AOD, else check flags
         // since we could be using a different status bar
         return mStatusBarOptionalLazy.map(statusBarLazy -> {
