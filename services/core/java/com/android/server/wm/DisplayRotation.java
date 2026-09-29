@@ -335,8 +335,14 @@ public class DisplayRotation {
         // It's also not likely to rotate a TV screen.
         final boolean isTv = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_LEANBACK);
+        // andr36oid: a handheld with a fixed landscape panel and no rotation sensor. Apps that ask
+        // for portrait keep the screen as it is (shown upright in the middle) instead of turning
+        // the picture sideways. "adb shell wm fixed-to-user-rotation disabled" turns this off.
+        final boolean fixedPanel = SystemProperties.getBoolean(
+                "ro.andr36oid.fixed_rotation", false);
         mDefaultFixedToUserRotation =
-                (isCar || isTv || mService.mIsPc || mDisplayContent.forceDesktopMode())
+                (isCar || isTv || mService.mIsPc || mDisplayContent.forceDesktopMode()
+                        || fixedPanel)
                 // For debug purposes the next line turns this feature off with:
                 // $ adb shell setprop config.override_forced_orient true
                 // $ adb shell wm size reset

@@ -5411,7 +5411,13 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
             // The callback is only interested in the foreground changes of fullscreen activity.
             return;
         }
-        if (!r.inSizeCompatMode()) {
+        // andr36oid: when the display never rotates for apps, restarting a portrait app can't give
+        // it a better fit, and the restart button needs a touchscreen. Only offer it when the app
+        // is scaled because the density changed.
+        final boolean restartHelps = r.inSizeCompatMode()
+                && (handlesOrientationChangeFromDescendant()
+                        || r.getConfiguration().densityDpi != getConfiguration().densityDpi);
+        if (!restartHelps) {
             if (mLastCompatModeActivity != null) {
                 mAtmService.getTaskChangeNotificationController()
                         .notifySizeCompatModeActivityChanged(mDisplayId, null /* activityToken */);
