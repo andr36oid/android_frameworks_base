@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="screenrecord_hotkey_starting">L\'enregistrement de l\'écran commence dans 3 secondes. FN + R2 l\'arrête.</string>
+    <string name="screenrecord_hotkey_stopped">Enregistrement de l\'écran arrêté. Sauvegarde dans Movies.</string>
+    <string name="screenrecord_hotkey_cancelled">Enregistrement de l\'écran annulé</string>
+</resources>

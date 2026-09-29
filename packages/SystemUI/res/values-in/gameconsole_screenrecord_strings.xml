@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="screenrecord_hotkey_starting">Rekaman layar dimulai dalam 3 detik. Tekan FN + R2 untuk menghentikannya.</string>
+    <string name="screenrecord_hotkey_stopped">Rekaman layar dihentikan. Menyimpan ke Movies.</string>
+    <string name="screenrecord_hotkey_cancelled">Rekaman layar dibatalkan</string>
+</resources>
