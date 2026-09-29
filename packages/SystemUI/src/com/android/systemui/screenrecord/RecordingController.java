@@ -16,6 +16,8 @@
 
 package com.android.systemui.screenrecord;
 
+import android.Manifest;
+import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -25,9 +27,12 @@ import android.content.IntentFilter;
 import android.os.CountDownTimer;
 import android.os.UserHandle;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.systemui.R;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.settings.CurrentUserContextTracker;
 import com.android.systemui.statusbar.policy.CallbackController;
 
 import java.util.ArrayList;
@@ -45,12 +50,23 @@ public class RecordingController
     private static final String SYSUI_PACKAGE = "com.android.systemui";
     private static final String SYSUI_SCREENRECORD_LAUNCHER =
             "com.android.systemui.screenrecord.ScreenRecordDialog";
+    /**
+     * Sent by the system for FN + R2: starts a recording without the dialog, or stops or
+     * cancels the one running. Only senders with STATUS_BAR_SERVICE (the system) are heard.
+     */
+    public static final String ACTION_TOGGLE = "com.android.systemui.screenrecord.TOGGLE";
+    // Same countdown as the dialog. Long enough for the toast to be gone before recording.
+    private static final long HOTKEY_DELAY_MS = 3000;
+    private static final long HOTKEY_INTERVAL_MS = 1000;
 
     private boolean mIsStarting;
     private boolean mIsRecording;
     private PendingIntent mStopIntent;
     private CountDownTimer mCountDownTimer = null;
     private BroadcastDispatcher mBroadcastDispatcher;
+    private final Context mContext;
+    private final CurrentUserContextTracker mUserContextTracker;
+    private Toast mHotkeyToast;
 
     private ArrayList<RecordingStateChangeCallback> mListeners = new ArrayList<>();
 
@@ -67,9 +83,63 @@ public class RecordingController
     /**
      * Create a new RecordingController
      */
+    private final BroadcastReceiver mToggleReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            toggleFromHotkey();
+        }
+    };
+
     @Inject
-    public RecordingController(BroadcastDispatcher broadcastDispatcher) {
+    public RecordingController(BroadcastDispatcher broadcastDispatcher, Context context,
+            CurrentUserContextTracker userContextTracker) {
         mBroadcastDispatcher = broadcastDispatcher;
+        mContext = context;
+        mUserContextTracker = userContextTracker;
+        // Not through the BroadcastDispatcher, which can't require a permission from the sender
+        mContext.registerReceiver(mToggleReceiver, new IntentFilter(ACTION_TOGGLE),
+                Manifest.permission.STATUS_BAR_SERVICE, null);
+    }
+
+    /**
+     * The FN shortcut: cancel a countdown, stop a recording, or else start one with the
+     * default options after the usual countdown. Says what happened in a toast, as the
+     * status bar and the tile are usually hidden while a game runs.
+     */
+    @VisibleForTesting
+    void toggleFromHotkey() {
+        if (mIsStarting) {
+            cancelCountdown();
+            showHotkeyToast(R.string.screenrecord_hotkey_cancelled);
+        } else if (mIsRecording) {
+            stopRecording();
+            showHotkeyToast(R.string.screenrecord_hotkey_stopped);
+        } else {
+            startFromHotkey();
+            showHotkeyToast(R.string.screenrecord_hotkey_starting);
+        }
+    }
+
+    private void startFromHotkey() {
+        Context userContext = mUserContextTracker.getCurrentUserContext();
+        PendingIntent startIntent = PendingIntent.getForegroundService(userContext,
+                RecordingService.REQUEST_CODE,
+                RecordingService.getStartIntent(userContext, Activity.RESULT_OK,
+                        ScreenRecordingAudioSource.INTERNAL.ordinal(), false),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent stopIntent = PendingIntent.getService(userContext,
+                RecordingService.REQUEST_CODE,
+                RecordingService.getStopIntent(userContext),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        startCountdown(HOTKEY_DELAY_MS, HOTKEY_INTERVAL_MS, startIntent, stopIntent);
+    }
+
+    private void showHotkeyToast(int text) {
+        if (mHotkeyToast != null) {
+            mHotkeyToast.cancel();
+        }
+        mHotkeyToast = Toast.makeText(mContext, text, Toast.LENGTH_SHORT);
+        mHotkeyToast.show();
     }
 
     /**

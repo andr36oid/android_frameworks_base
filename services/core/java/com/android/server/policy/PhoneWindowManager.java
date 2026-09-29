@@ -140,6 +140,8 @@ import android.media.AudioManager;
 import android.media.AudioManagerInternal;
 import android.media.AudioSystem;
 import android.media.IAudioService;
+import android.media.projection.MediaProjectionInfo;
+import android.media.projection.MediaProjectionManager;
 import android.media.session.MediaSessionLegacyHelper;
 import android.os.Binder;
 import android.os.Bundle;
@@ -673,6 +675,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final String PERFORMANCE_OVERLAY_PACKAGE = "org.andr36oid.perfoverlay";
     private static final String ACTION_TOGGLE_PERFORMANCE_OVERLAY =
             "org.andr36oid.perfoverlay.action.TOGGLE";
+    // SystemUI's screen recorder listens for this (RecordingController.ACTION_TOGGLE)
+    private static final String SCREEN_RECORD_PACKAGE = "com.android.systemui";
+    private static final String ACTION_TOGGLE_SCREEN_RECORD =
+            "com.android.systemui.screenrecord.TOGGLE";
     private static final String TOUCH_CONTROLS_PACKAGE = "org.andr36oid.touchmapper";
     private static final String ACTION_EDIT_TOUCH_CONTROLS =
             "org.andr36oid.touchmapper.action.EDIT";
@@ -689,6 +695,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int FN_HOTKEY_JOYSTICK_MOUSE = 6;
     private static final int FN_HOTKEY_PERFORMANCE_PROFILE = 7;
     private static final int FN_HOTKEY_PERFORMANCE_OVERLAY = 8;
+    private static final int FN_HOTKEY_SCREEN_RECORD = 11;
     private static final int FN_HOTKEY_TOUCH_CONTROLS = 9;
     // FN is held right now. Written on the input reader thread, which sees every key.
     private volatile boolean mFnDown;
@@ -3952,6 +3959,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 return FN_HOTKEY_PERFORMANCE_PROFILE;
             case KeyEvent.KEYCODE_BUTTON_L2:
                 return FN_HOTKEY_PERFORMANCE_OVERLAY;
+            case KeyEvent.KEYCODE_BUTTON_R2:
+                return FN_HOTKEY_SCREEN_RECORD;
             case KeyEvent.KEYCODE_BUTTON_L1:
                 return FN_HOTKEY_TOUCH_CONTROLS;
             default:
@@ -4078,6 +4087,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // The performance overlay app shows or hides its FPS box
                 mContext.sendBroadcastAsUser(new Intent(ACTION_TOGGLE_PERFORMANCE_OVERLAY)
                         .setPackage(PERFORMANCE_OVERLAY_PACKAGE)
+                        .addFlags(Intent.FLAG_RECEIVER_FOREGROUND), UserHandle.SYSTEM);
+                break;
+            case FN_HOTKEY_SCREEN_RECORD:
+                // SystemUI starts a recording after a 3 s countdown, or stops the one running,
+                // and says which in a toast
+                mContext.sendBroadcastAsUser(new Intent(ACTION_TOGGLE_SCREEN_RECORD)
+                        .setPackage(SCREEN_RECORD_PACKAGE)
                         .addFlags(Intent.FLAG_RECEIVER_FOREGROUND), UserHandle.SYSTEM);
                 break;
             case FN_HOTKEY_TOUCH_CONTROLS:
@@ -4225,6 +4241,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         "org.andr36oid.perfoverlay.action.TOGGLE")) {
             rows.add(new FnShortcutHelp.Row("Performance overlay", null, "L2"));
         }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_R2) != FN_HOTKEY_NONE) {
+            rows.add(new FnShortcutHelp.Row("Start / stop screen recording",
+                    isSystemUiRecording() ? "on" : null, "R2"));
+        }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_L1) != FN_HOTKEY_NONE
                 && hasFnReceiver(TOUCH_CONTROLS_PACKAGE, ACTION_EDIT_TOUCH_CONTROLS)) {
             rows.add(new FnShortcutHelp.Row("Touch controls editor", null, "L1"));
@@ -4237,6 +4257,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final List<ResolveInfo> receivers = mContext.getPackageManager()
                 .queryBroadcastReceivers(intent, PackageManager.MATCH_SYSTEM_ONLY);
         return receivers != null && !receivers.isEmpty();
+    }
+
+    /** SystemUI's screen recorder is the one app that records without asking first. */
+    private boolean isSystemUiRecording() {
+        final MediaProjectionManager projections =
+                mContext.getSystemService(MediaProjectionManager.class);
+        final MediaProjectionInfo info =
+                projections != null ? projections.getActiveProjectionInfo() : null;
+        return info != null && SCREEN_RECORD_PACKAGE.equals(info.getPackageName());
     }
 
     private String getBrightnessPercent() {
