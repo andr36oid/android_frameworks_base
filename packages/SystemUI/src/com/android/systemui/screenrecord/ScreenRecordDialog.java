@@ -89,10 +89,17 @@ public class ScreenRecordDialog extends Activity {
             finish();
         });
 
+        // Microphone choices only while a microphone is plugged in; the console has none.
+        // Checked each time the dialog opens.
         mModes = new ArrayList<>();
-        mModes.add(MIC);
+        boolean hasMic = mController.hasMicrophone();
+        if (hasMic) {
+            mModes.add(MIC);
+        }
         mModes.add(INTERNAL);
-        mModes.add(MIC_AND_INTERNAL);
+        if (hasMic) {
+            mModes.add(MIC_AND_INTERNAL);
+        }
 
         mAudioSwitch = findViewById(R.id.screenrecord_audio_switch);
         mTapsSwitch = findViewById(R.id.screenrecord_taps_switch);
