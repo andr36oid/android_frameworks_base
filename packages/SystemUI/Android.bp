@@ -179,6 +179,10 @@ android_app {
 
     kotlincflags: ["-Xjvm-default=enable"],
 
+    // Store only the entries that exist in each configuration (1.9 MB smaller
+    // resources.arsc). Needs the sparse FindEntryByName fix in libandroidfw.
+    aaptflags: ["--enable-sparse-encoding"],
+
     dxflags: ["--multi-dex"],
     required: ["privapp_whitelist_com.android.systemui"],
 
