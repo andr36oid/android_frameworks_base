@@ -676,6 +676,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final String TOUCH_CONTROLS_PACKAGE = "org.andr36oid.touchmapper";
     private static final String ACTION_EDIT_TOUCH_CONTROLS =
             "org.andr36oid.touchmapper.action.EDIT";
+    private static final String CONTINUE_GAME_PACKAGE = "org.andr36oid.gamecomfort";
+    private static final String ACTION_CONTINUE_GAME =
+            "org.andr36oid.gamecomfort.action.CONTINUE";
     // Brightness steps along the brightness slider's curve, so each step looks alike
     private static final int FN_BRIGHTNESS_STEPS = 16;
     // Held shortcut keys repeat, only every n-th repeat counts
@@ -690,6 +693,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int FN_HOTKEY_PERFORMANCE_PROFILE = 7;
     private static final int FN_HOTKEY_PERFORMANCE_OVERLAY = 8;
     private static final int FN_HOTKEY_TOUCH_CONTROLS = 9;
+    private static final int FN_HOTKEY_CONTINUE_GAME = 10;
     // FN is held right now. Written on the input reader thread, which sees every key.
     private volatile boolean mFnDown;
     // A shortcut ran during this FN press, so letting go of FN must not go home.
@@ -3954,6 +3958,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 return FN_HOTKEY_PERFORMANCE_OVERLAY;
             case KeyEvent.KEYCODE_BUTTON_L1:
                 return FN_HOTKEY_TOUCH_CONTROLS;
+            case KeyEvent.KEYCODE_BUTTON_A:
+                return FN_HOTKEY_CONTINUE_GAME;
             default:
                 return FN_HOTKEY_NONE;
         }
@@ -4085,6 +4091,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mContext.sendBroadcastAsUser(new Intent(ACTION_EDIT_TOUCH_CONTROLS)
                         .setPackage(TOUCH_CONTROLS_PACKAGE)
                         .addFlags(Intent.FLAG_RECEIVER_FOREGROUND), UserHandle.SYSTEM);
+                break;
+            case FN_HOTKEY_CONTINUE_GAME:
+                // Game comfort brings the last game back, or says there is none
+                try {
+                    mContext.startActivityAsUser(getContinueGameIntent(), UserHandle.CURRENT);
+                } catch (ActivityNotFoundException e) {
+                    Slog.w(TAG, "No app to continue the last game", e);
+                }
                 break;
         }
     }
@@ -4229,7 +4243,17 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 && hasFnReceiver(TOUCH_CONTROLS_PACKAGE, ACTION_EDIT_TOUCH_CONTROLS)) {
             rows.add(new FnShortcutHelp.Row("Touch controls editor", null, "L1"));
         }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_A) != FN_HOTKEY_NONE
+                && mContext.getPackageManager().resolveActivity(getContinueGameIntent(),
+                        PackageManager.MATCH_SYSTEM_ONLY) != null) {
+            rows.add(new FnShortcutHelp.Row("Continue the last game", null, "A"));
+        }
         return rows;
+    }
+
+    private static Intent getContinueGameIntent() {
+        return new Intent(ACTION_CONTINUE_GAME).setPackage(CONTINUE_GAME_PACKAGE)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     }
 
     private boolean hasFnReceiver(String packageName, String action) {

@@ -213,6 +213,13 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
     // Most recent apps listed by the built-in app switcher
     private static final int APP_SWITCHER_MAX_APPS = 12;
 
+    // Game comfort's Continue: the last game's name and app, written by that app
+    private static final String CONTINUE_GAME_LABEL_SETTING = "andr36oid_continue_label";
+    private static final String CONTINUE_GAME_PACKAGE_SETTING = "andr36oid_continue_package";
+    private static final String CONTINUE_GAME_PACKAGE = "org.andr36oid.gamecomfort";
+    private static final String ACTION_CONTINUE_GAME =
+            "org.andr36oid.gamecomfort.action.CONTINUE";
+
     public static final String PREFS_CONTROLS_SEEDING_COMPLETED = "SeedingCompleted";
     public static final String PREFS_CONTROLS_FILE = "controls_prefs";
     private static final int SEEDING_MAX = 2;
@@ -669,6 +676,40 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         }
     }
 
+    /**
+     * "Continue: <game>" for the last game played, as the first app tile. Game comfort
+     * (device/gameconsole/common/GameComfort) finds the game and publishes its name; the tile
+     * starts its Continue screen, which brings the game back. Not shown while that game is
+     * on screen: closing the menu goes back into it anyway.
+     */
+    private void addContinueGame(List<Action> actions) {
+        if (mKeyguardShowing) {
+            return;
+        }
+        final ContentResolver resolver = mContext.getContentResolver();
+        final String label = Settings.Global.getString(resolver, CONTINUE_GAME_LABEL_SETTING);
+        if (TextUtils.isEmpty(label)) {
+            return;
+        }
+        final String gamePackage =
+                Settings.Global.getString(resolver, CONTINUE_GAME_PACKAGE_SETTING);
+        final ForegroundApp front = findForegroundApp();
+        if (front != null && front.packageName.equals(gamePackage)) {
+            return;
+        }
+        final Intent intent = new Intent(ACTION_CONTINUE_GAME)
+                .setPackage(CONTINUE_GAME_PACKAGE)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        if (mContext.getPackageManager().resolveActivity(intent,
+                PackageManager.MATCH_SYSTEM_ONLY) == null) {
+            return;
+        }
+        addIfShouldShowAction(actions, new PinnedAppAction(intent,
+                mResources.getString(com.android.systemui.R.string.global_action_continue_game,
+                        label),
+                mContext.getDrawable(com.android.systemui.R.drawable.ic_global_actions_continue)));
+    }
+
     @VisibleForTesting
     protected void createActionItems() {
         // Simple toggle style if there's no vibrator, otherwise use a tri-state
@@ -776,6 +817,7 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             addedKeys.add(actionKey);
         }
 
+        addContinueGame(tempActions);
         addPinnedApps(tempActions);
 
         for (int i = 0; i < restartActions.length; i++) {
