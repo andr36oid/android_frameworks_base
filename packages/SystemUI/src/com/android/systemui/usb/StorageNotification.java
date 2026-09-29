@@ -366,9 +366,13 @@ public class StorageNotification extends SystemUI {
     private Notification onVolumeMounted(VolumeInfo vol) {
         final VolumeRecord rec = mStorageManager.findRecordByUuid(vol.getFsUuid());
         final DiskInfo disk = vol.getDisk();
+        // An NTFS drive that Windows left hibernated (Fast Startup) or not safely removed is
+        // opened read-only. Say why, even when this card's notification was dismissed before.
+        final boolean windowsReadOnly = vol.getState() == VolumeInfo.STATE_MOUNTED_READ_ONLY
+                && "ntfs".equals(vol.fsType);
 
         // Don't annoy when user dismissed in past.
-        if (rec.isSnoozed() && (disk.isAdoptable() || disk.isSd())) {
+        if (rec.isSnoozed() && (disk.isAdoptable() || disk.isSd()) && !windowsReadOnly) {
             return null;
         }
 
@@ -398,8 +402,11 @@ public class StorageNotification extends SystemUI {
             }
         } else {
             final CharSequence title = disk.getDescription();
-            final CharSequence text = mContext.getString(
-                    R.string.ext_media_ready_notification_message, disk.getDescription());
+            final CharSequence text = windowsReadOnly
+                    ? mContext.getString(
+                            com.android.systemui.R.string.andr36oid_ntfs_read_only_message)
+                    : mContext.getString(R.string.ext_media_ready_notification_message,
+                            disk.getDescription());
 
             final PendingIntent browseIntent = buildBrowsePendingIntent(vol);
             final Notification.Builder builder = buildNotificationBuilder(vol, title, text)
