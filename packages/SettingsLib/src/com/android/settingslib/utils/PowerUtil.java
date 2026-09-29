@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 public class PowerUtil {
 
     private static final long SEVEN_MINUTES_MILLIS = TimeUnit.MINUTES.toMillis(7);
+    private static final long FIVE_MINUTES_MILLIS = TimeUnit.MINUTES.toMillis(5);
     private static final long FIFTEEN_MINUTES_MILLIS = TimeUnit.MINUTES.toMillis(15);
     private static final long ONE_DAY_MILLIS = TimeUnit.DAYS.toMillis(1);
     private static final long TWO_DAYS_MILLIS = TimeUnit.DAYS.toMillis(2);
@@ -193,19 +194,29 @@ public class PowerUtil {
     private static String getRegularTimeRemainingString(Context context, long drainTimeMs,
             String percentageString, boolean basedOnUsage) {
 
-        CharSequence timeString = getDateTimeStringFromMs(context, drainTimeMs);
+        // andr36oid: "About 2 hr, 30 min left" instead of "Should last until about 9:45 PM".
+        // The console has no clock battery and is mostly offline, so the clock can be wrong.
+        CharSequence timeString = getRoundedDurationString(context, drainTimeMs);
 
         if (TextUtils.isEmpty(percentageString)) {
             int id = basedOnUsage
-                    ? R.string.power_discharge_by_only_enhanced
-                    : R.string.power_discharge_by_only;
+                    ? R.string.power_remaining_duration_only_enhanced
+                    : R.string.power_remaining_duration_only;
             return context.getString(id, timeString);
         } else {
             int id = basedOnUsage
-                    ? R.string.power_discharge_by_enhanced
-                    : R.string.power_discharge_by;
+                    ? R.string.power_discharging_duration_enhanced
+                    : R.string.power_discharging_duration;
             return context.getString(id, timeString, percentageString);
         }
+    }
+
+    // andr36oid: a duration rounded to 15 minutes, or to 5 minutes under an hour.
+    private static CharSequence getRoundedDurationString(Context context, long drainTimeMs) {
+        final long threshold = drainTimeMs >= ONE_HOUR_MILLIS
+                ? FIFTEEN_MINUTES_MILLIS : FIVE_MINUTES_MILLIS;
+        return StringUtil.formatElapsedTime(context,
+                roundTimeToNearestThreshold(drainTimeMs, threshold), false /* withSeconds */);
     }
 
     private static CharSequence getDateTimeStringFromMs(Context context, long drainTimeMs) {
@@ -223,19 +234,9 @@ public class PowerUtil {
     }
 
     private static String getRegularTimeRemainingShortString(Context context, long drainTimeMs) {
-        // Get the time of day we think device will die rounded to the nearest 15 min.
-        final long roundedTimeOfDayMs =
-                roundTimeToNearestThreshold(
-                        System.currentTimeMillis() + drainTimeMs,
-                        FIFTEEN_MINUTES_MILLIS);
-
-        // convert the time to a properly formatted string.
-        String skeleton = android.text.format.DateFormat.getTimeFormatString(context);
-        DateFormat fmt = DateFormat.getInstanceForSkeleton(skeleton);
-        Date date = Date.from(Instant.ofEpochMilli(roundedTimeOfDayMs));
-        CharSequence timeString = fmt.format(date);
-
-        return context.getString(R.string.power_discharge_by_only_short, timeString);
+        // andr36oid: "2 hr, 30 min" instead of "Until 9:45 PM" (the clock can be wrong).
+        return context.getString(R.string.power_remaining_duration_only_short,
+                getRoundedDurationString(context, drainTimeMs));
     }
 
     public static long convertUsToMs(long timeUs) {
