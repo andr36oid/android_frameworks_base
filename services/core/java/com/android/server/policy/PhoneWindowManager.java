@@ -667,6 +667,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // Screenshot shortcut while the list shows: wait until it is off the screen
     private static final long FN_HELP_SCREENSHOT_DELAY_MS = 150;
     private static final String JOYMOUSE_ACTIVE_PROPERTY = "sys.joymouse.active";
+    // SystemUI opens the power menu right on its App switcher page (GlobalActionsComponent)
+    private static final String APP_SWITCHER_PACKAGE = "com.android.systemui";
+    private static final String ACTION_SHOW_APP_SWITCHER =
+            "com.android.systemui.action.SHOW_APP_SWITCHER";
     private static final String PERFORMANCE_PROFILE_PACKAGE = "org.andr36oid.cpuoverclock";
     private static final String ACTION_NEXT_PERFORMANCE_PROFILE =
             "org.andr36oid.cpuoverclock.action.NEXT_PROFILE";
@@ -685,6 +689,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int FN_HOTKEY_BRIGHTNESS_DOWN = 2;
     private static final int FN_HOTKEY_SCREENSHOT = 3;
     private static final int FN_HOTKEY_LAST_APP = 4;
+    private static final int FN_HOTKEY_APP_SWITCHER = 12;
     private static final int FN_HOTKEY_TOGGLE_PANEL = 5;
     private static final int FN_HOTKEY_JOYSTICK_MOUSE = 6;
     private static final int FN_HOTKEY_PERFORMANCE_PROFILE = 7;
@@ -3943,6 +3948,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 return FN_HOTKEY_SCREENSHOT;
             case KeyEvent.KEYCODE_BUTTON_SELECT:
                 return FN_HOTKEY_LAST_APP;
+            case KeyEvent.KEYCODE_BUTTON_B:
+                return FN_HOTKEY_APP_SWITCHER;
             case KeyEvent.KEYCODE_BUTTON_Y:
                 return FN_HOTKEY_TOGGLE_PANEL;
             case KeyEvent.KEYCODE_BUTTON_X:
@@ -4047,6 +4054,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 if (!switchToLastApp()) {
                     showFnToast("No other app to switch to");
                 }
+                break;
+            case FN_HOTKEY_APP_SWITCHER:
+                // The power menu on its App switcher page, or a note that no other app is open
+                mContext.sendBroadcastAsUser(new Intent(ACTION_SHOW_APP_SWITCHER)
+                        .setPackage(APP_SWITCHER_PACKAGE)
+                        .addFlags(Intent.FLAG_RECEIVER_FOREGROUND), UserHandle.SYSTEM);
                 break;
             case FN_HOTKEY_TOGGLE_PANEL:
                 final IStatusBarService statusBar = getStatusBarService();
@@ -4206,6 +4219,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_SELECT) != FN_HOTKEY_NONE) {
             rows.add(new FnShortcutHelp.Row("Back to the last app", null, "Select"));
+        }
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_B) != FN_HOTKEY_NONE) {
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_app_switcher),
+                    null, "B"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_Y) != FN_HOTKEY_NONE) {
             rows.add(new FnShortcutHelp.Row("Quick Settings", null, "Y"));

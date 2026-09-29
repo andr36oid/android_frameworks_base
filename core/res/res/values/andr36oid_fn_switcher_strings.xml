@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FN shortcut list row: FN + B opens the power menu on its App switcher page.
+         Same words as the power menu tile (SystemUI global_action_app_switcher). -->
+    <string name="fn_help_app_switcher">App switcher</string>
+
+    <java-symbol type="string" name="fn_help_app_switcher" />
+</resources>

@@ -94,6 +94,20 @@ public class GlobalActionsImpl implements GlobalActions, CommandQueue.Callbacks 
         Dependency.get(KeyguardUpdateMonitor.class).requestFaceAuth();
     }
 
+    /**
+     * FN + B: the power menu right on its App switcher page, see
+     * {@link GlobalActionsDialog#showAppSwitcher}.
+     *
+     * @return true if the power menu was opened by this call
+     */
+    public boolean showAppSwitcher() {
+        if (mDisabled) return false;
+        mGlobalActionsDialog = mGlobalActionsDialogLazy.get();
+        return mGlobalActionsDialog.showAppSwitcher(mKeyguardStateController.isShowing(),
+                mDeviceProvisionedController.isDeviceProvisioned(),
+                mWalletPluginProvider.get());
+    }
+
     @Override
     public void showShutdownUi(boolean isReboot, String reason, boolean rebootCustom) {
         ScrimDrawable background = new ScrimDrawable();

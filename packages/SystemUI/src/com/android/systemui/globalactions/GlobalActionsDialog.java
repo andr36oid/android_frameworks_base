@@ -552,6 +552,50 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
     }
 
     /**
+     * FN + B: the power menu opened right on its App switcher page. Pressed again while that
+     * page shows, it closes the menu. With a recents provider (a quickstep launcher) it
+     * toggles that instead, like the App switcher tile does. With no other app open it only
+     * says so, without opening the menu.
+     *
+     * @return true if the power menu was opened by this call
+     */
+    public boolean showAppSwitcher(boolean keyguardShowing, boolean isDeviceProvisioned,
+            GlobalActionsPanelPlugin walletPlugin) {
+        final boolean showing = mDialog != null && mDialog.isShowing();
+        if (isSystemRecentsAvailable()) {
+            if (showing) {
+                dismissDialog();
+            }
+            Dependency.get(CommandQueue.class).toggleRecentApps();
+            return false;
+        }
+        if (showing) {
+            if (mDialog.isAppSwitcherShowing()) {
+                // Same as closing the menu with the power key
+                mWindowManagerFuncs.onGlobalActionsShown();
+                mDialog.dismiss();
+                mDialog = null;
+            } else {
+                new AppSwitcherAction().onPress();
+            }
+            return false;
+        }
+        final List<Action> apps = getRecentApps(APP_SWITCHER_MAX_APPS);
+        if (apps.isEmpty()) {
+            Toast.makeText(mContext,
+                    com.android.systemui.R.string.global_action_app_switcher_empty,
+                    Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        mKeyguardShowing = keyguardShowing;
+        mDeviceProvisioned = isDeviceProvisioned;
+        mWalletPlugin = walletPlugin;
+        handleShow();
+        mDialog.showAppSwitcher(new MyAppSwitcherAdapter(apps));
+        return true;
+    }
+
+    /**
      * Dismiss the global actions dialog, if it's currently shown
      */
     public void dismissDialog() {
@@ -3253,6 +3297,10 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             mGlobalActionsLayout.updateList();
             // Leave the room to the apps
             updateStatsPanel(false);
+        }
+
+        boolean isAppSwitcherShowing() {
+            return mAppSwitcherAdapter != null;
         }
 
         private boolean hideAppSwitcher() {
