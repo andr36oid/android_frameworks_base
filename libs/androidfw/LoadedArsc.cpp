@@ -372,14 +372,24 @@ uint32_t LoadedPackage::FindEntryByName(const std::u16string& type_name,
     for (size_t entry_idx = 0; entry_idx < entry_count; entry_idx++) {
       const uint32_t* entry_offsets = reinterpret_cast<const uint32_t*>(
           reinterpret_cast<const uint8_t*>(type) + dtohs(type->header.headerSize));
-      const uint32_t offset = dtohl(entry_offsets[entry_idx]);
+      uint32_t offset;
+      uint16_t res_idx;
+      if (type->flags & ResTable_type::FLAG_SPARSE) {
+        const ResTable_sparseTypeEntry* sparse_entry =
+            reinterpret_cast<const ResTable_sparseTypeEntry*>(entry_offsets) + entry_idx;
+        offset = uint32_t{dtohs(sparse_entry->offset)} * 4u;
+        res_idx = dtohs(sparse_entry->idx);
+      } else {
+        offset = dtohl(entry_offsets[entry_idx]);
+        res_idx = entry_idx;
+      }
       if (offset != ResTable_type::NO_ENTRY) {
         const ResTable_entry* entry = reinterpret_cast<const ResTable_entry*>(
             reinterpret_cast<const uint8_t*>(type) + dtohl(type->entriesStart) + offset);
         if (dtohl(entry->key.index) == static_cast<uint32_t>(key_idx)) {
           // The package ID will be overridden by the caller (due to runtime assignment of package
           // IDs for shared libraries).
-          return make_resid(0x00, type_idx + type_id_offset_ + 1, entry_idx);
+          return make_resid(0x00, type_idx + type_id_offset_ + 1, res_idx);
         }
       }
     }
