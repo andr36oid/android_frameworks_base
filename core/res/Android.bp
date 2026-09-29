@@ -33,6 +33,12 @@ android_app {
 
         // Allow overlay to add resource
         "--auto-add-overlay",
+
+        // Store only the entries that exist in each configuration. Most of the
+        // ~90 language and carrier tables hold a few strings, and a full offset
+        // table per table made resources.arsc 20 MB bigger. Needs the sparse
+        // FindEntryByName fix in libandroidfw (getIdentifier, idmap2, aapt2 -I).
+        "--enable-sparse-encoding",
     ],
 
     // Create package-export.apk, which other packages can use to get
