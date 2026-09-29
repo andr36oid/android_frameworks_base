@@ -15,5 +15,5 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_ntfs_read_only_message">Esta unidade não foi desligada com segurança pelo Windows. Ela está somente leitura. Desative a Inicialização rápida ou use Remover hardware com segurança no PC para gravar nela.</string>
+    <string name="andr36oid_ntfs_read_only_message">Esta unidade está somente leitura. Se ela foi usada no Windows, talvez não tenha sido desligada com segurança: desative a Inicialização rápida ou use Remover hardware com segurança no PC para gravar nela.</string>
 </resources>

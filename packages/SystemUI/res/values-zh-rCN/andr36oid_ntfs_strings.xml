@@ -15,5 +15,5 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_ntfs_read_only_message">此驱动器未被 Windows 安全关闭，目前为只读。要写入，请在电脑上关闭“快速启动”，或使用“安全删除硬件”。</string>
+    <string name="andr36oid_ntfs_read_only_message">此驱动器为只读。如果它曾在 Windows 上使用，可能未被安全关闭：要写入，请在电脑上关闭“快速启动”，或使用“安全删除硬件”。</string>
 </resources>

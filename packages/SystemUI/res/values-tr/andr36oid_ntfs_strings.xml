@@ -15,5 +15,5 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_ntfs_read_only_message">Bu sürücü Windows tarafından güvenli şekilde kapatılmadı. Salt okunur durumda. Yazabilmek için bilgisayarda Hızlı başlatmayı kapatın veya Donanımı Güvenle Kaldır\'ı kullanın.</string>
+    <string name="andr36oid_ntfs_read_only_message">Bu sürücü salt okunur. Windows\'ta kullanıldıysa güvenli şekilde kapatılmamış olabilir: yazabilmek için bilgisayarda Hızlı başlatmayı kapatın veya Donanımı Güvenle Kaldır\'ı kullanın.</string>
 </resources>

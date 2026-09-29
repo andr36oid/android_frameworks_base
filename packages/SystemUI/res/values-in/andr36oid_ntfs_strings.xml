@@ -15,5 +15,5 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_ntfs_read_only_message">Drive ini tidak dimatikan dengan aman oleh Windows. Drive hanya dapat dibaca. Matikan Pengaktifan cepat atau gunakan Lepaskan Perangkat Keras dengan Aman di PC untuk menulis ke drive ini.</string>
+    <string name="andr36oid_ntfs_read_only_message">Drive ini hanya dapat dibaca. Jika pernah dipakai di Windows, drive ini mungkin tidak dimatikan dengan aman: matikan Pengaktifan cepat atau gunakan Lepaskan Perangkat Keras dengan Aman di PC untuk menulis ke drive ini.</string>
 </resources>

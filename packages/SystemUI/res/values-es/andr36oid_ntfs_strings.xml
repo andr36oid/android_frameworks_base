@@ -15,5 +15,5 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_ntfs_read_only_message">Windows no apagó esta unidad de forma segura. Está en solo lectura. Desactiva el Inicio rápido o usa Quitar hardware de forma segura en el PC para poder escribir en ella.</string>
+    <string name="andr36oid_ntfs_read_only_message">Esta unidad está en solo lectura. Si se usó en Windows, puede que no se apagara de forma segura: desactiva el Inicio rápido o usa Quitar hardware de forma segura en el PC para poder escribir en ella.</string>
 </resources>

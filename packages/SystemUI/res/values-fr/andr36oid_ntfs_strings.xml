@@ -15,5 +15,5 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_ntfs_read_only_message">Windows n\'a pas arrêté ce lecteur correctement. Il est en lecture seule. Désactivez le démarrage rapide ou utilisez « Retirer le périphérique en toute sécurité » sur le PC pour pouvoir y écrire.</string>
+    <string name="andr36oid_ntfs_read_only_message">Ce lecteur est en lecture seule. S\'il a été utilisé sous Windows, il n\'a peut-être pas été arrêté correctement : désactivez le démarrage rapide ou utilisez « Retirer le périphérique en toute sécurité » sur le PC pour pouvoir y écrire.</string>
 </resources>

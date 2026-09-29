@@ -15,5 +15,5 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_ntfs_read_only_message">Windows nie zamknął bezpiecznie tego dysku. Jest tylko do odczytu. Aby móc na nim zapisywać, wyłącz na komputerze Szybkie uruchamianie lub użyj opcji Bezpieczne usuwanie sprzętu.</string>
+    <string name="andr36oid_ntfs_read_only_message">Ten dysk jest tylko do odczytu. Jeśli był używany w systemie Windows, mógł nie zostać bezpiecznie zamknięty: aby móc na nim zapisywać, wyłącz na komputerze Szybkie uruchamianie lub użyj opcji Bezpieczne usuwanie sprzętu.</string>
 </resources>

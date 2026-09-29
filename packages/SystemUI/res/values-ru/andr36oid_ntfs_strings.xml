@@ -15,5 +15,5 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_ntfs_read_only_message">Windows не завершил работу с этим диском безопасно. Он доступен только для чтения. Чтобы записывать на него, отключите «Быстрый запуск» или используйте «Безопасное извлечение» на ПК.</string>
+    <string name="andr36oid_ntfs_read_only_message">Этот диск доступен только для чтения. Если он использовался в Windows, возможно, работа с ним не была завершена безопасно: чтобы записывать на него, отключите «Быстрый запуск» или используйте «Безопасное извлечение» на ПК.</string>
 </resources>

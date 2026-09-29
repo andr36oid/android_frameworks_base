@@ -15,5 +15,5 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_ntfs_read_only_message">Dieses Laufwerk wurde von Windows nicht sicher heruntergefahren. Es ist schreibgeschützt. Schalte am PC den Schnellstart aus oder nutze „Hardware sicher entfernen“, um darauf zu schreiben.</string>
+    <string name="andr36oid_ntfs_read_only_message">Dieses Laufwerk ist schreibgeschützt. Wenn es an einem Windows-PC benutzt wurde, wurde es vielleicht nicht sicher getrennt: Schalte am PC den Schnellstart aus oder nutze „Hardware sicher entfernen“, um darauf zu schreiben.</string>
 </resources>

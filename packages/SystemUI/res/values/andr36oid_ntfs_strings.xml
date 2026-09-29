@@ -15,6 +15,6 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <!-- Storage notification text for an NTFS drive that Windows left hibernated (Fast Startup) or that was not safely removed, so it was opened read-only. "Fast Startup" and "Safely Remove" are the names Windows uses. -->
-    <string name="andr36oid_ntfs_read_only_message">This drive was not shut down safely by Windows. It is read-only. Turn off Fast Startup or use Safely Remove on the PC to write to it.</string>
+    <!-- Storage notification text for an NTFS drive that was mounted read-only. The usual cause is Windows leaving it hibernated (Fast Startup) or not safely removed, but a write-protect switch or a failing drive can do it too, so the text only says "may". "Fast Startup" and "Safely Remove" are the names Windows uses. -->
+    <string name="andr36oid_ntfs_read_only_message">This drive is read-only. If it was used on Windows, it may not have been shut down safely: turn off Fast Startup or use Safely Remove on the PC to write to it.</string>
 </resources>
