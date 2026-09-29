@@ -53,6 +53,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
 import android.os.WorkSource.WorkChain;
@@ -12442,7 +12443,7 @@ public class BatteryStatsImpl extends BatteryStats {
         }
         mMaxLearnedBatteryCapacity = Math.max(mMaxLearnedBatteryCapacity, chargeFullUAh);
 
-        mBatteryTimeToFullSeconds = chargeTimeToFullSeconds;
+        mBatteryTimeToFullSeconds = computeChargeTimeSeconds(status, onBattery, level);
     }
 
     public static boolean isOnBattery(int plugType, int status) {
@@ -12566,14 +12567,49 @@ public class BatteryStatsImpl extends BatteryStats {
         long usPerLevel = duration/discharge;
         return usPerLevel * mCurrentBatteryLevel;
         */
-        if (mDischargeStepTracker.mNumStepDurations < 1) {
-            return -1;
-        }
-        long msPerLevel = mDischargeStepTracker.computeTimePerLevel();
+        // andr36oid: only look at the last few levels lost with the screen on. The stock
+        // average over all 200 stored steps mixes in hours of sleep, so a console that slept
+        // overnight showed many hours too much while playing.
+        long msPerLevel = computeRecentTimePerLevel(mDischargeStepTracker, true);
         if (msPerLevel <= 0) {
             return -1;
         }
         return (msPerLevel * mCurrentBatteryLevel) * 1000;
+    }
+
+    // andr36oid: how many recent levels the time left and time to charge look at, about
+    // 30 minutes of play. Steps shorter than 20 s are gauge corrections (the RK817 driver can
+    // move several points at once), not real use: no console drains 1 % that fast.
+    private static final int RECENT_LEVEL_STEPS = 10;
+    private static final int RECENT_LEVEL_STEPS_MIN = 2;
+    private static final long RECENT_LEVEL_STEP_MIN_MS = 20 * 1000;
+
+    private static long computeRecentTimePerLevel(LevelStepTracker tracker,
+            boolean screenOnOnly) {
+        final long[] steps = tracker.mStepDurations;
+        final int count = tracker.mNumStepDurations;
+        long total = 0;
+        int used = 0;
+        // Index 0 is the newest step.
+        for (int i = 0; i < count && used < RECENT_LEVEL_STEPS; i++) {
+            final long duration = steps[i] & STEP_LEVEL_TIME_MASK;
+            if (duration < RECENT_LEVEL_STEP_MIN_MS) {
+                continue;
+            }
+            if (screenOnOnly) {
+                final long initMode = (steps[i] & STEP_LEVEL_INITIAL_MODE_MASK)
+                        >> STEP_LEVEL_INITIAL_MODE_SHIFT;
+                final long modMode = (steps[i] & STEP_LEVEL_MODIFIED_MODE_MASK)
+                        >> STEP_LEVEL_MODIFIED_MODE_SHIFT;
+                if ((modMode & STEP_LEVEL_MODE_SCREEN_STATE) != 0
+                        || (initMode & STEP_LEVEL_MODE_SCREEN_STATE) != Display.STATE_ON - 1) {
+                    continue;
+                }
+            }
+            total += duration;
+            used++;
+        }
+        return used >= RECENT_LEVEL_STEPS_MIN ? total / used : -1;
     }
 
     @Override
@@ -12592,18 +12628,34 @@ public class BatteryStatsImpl extends BatteryStats {
             // Not yet working.
             return -1;
         }
+        // andr36oid: no step fallback here, setBatteryStateLocked already worked it out.
         if (mBatteryTimeToFullSeconds >= 0) {
             return mBatteryTimeToFullSeconds * (1000 * 1000); // s to us
         }
-        // Else use algorithmic approach
-        if (mChargeStepTracker.mNumStepDurations < 1) {
+        return -1;
+    }
+
+    // andr36oid: the charge time, worked out where the status is known. The HAL value is not
+    // used: the RK817 driver's time_to_full_now divides the missing mAh by the battery voltage,
+    // not by a current, and reports it even when nothing charges. Only estimate while really
+    // charging ("Not charging" is also what the charge limit reports while it holds), and only
+    // up to the charge limit. The result travels to Settings in the parcel.
+    private long computeChargeTimeSeconds(int status, boolean onBattery, int level) {
+        if (onBattery || status != BatteryManager.BATTERY_STATUS_CHARGING) {
             return -1;
         }
-        long msPerLevel = mChargeStepTracker.computeTimePerLevel();
+        int target = SystemProperties.getInt("persist.andr36oid.charge_limit", 0);
+        if (target < 50 || target > 100) {
+            target = 100;
+        }
+        if (level >= target) {
+            return -1;
+        }
+        final long msPerLevel = computeRecentTimePerLevel(mChargeStepTracker, false);
         if (msPerLevel <= 0) {
             return -1;
         }
-        return (msPerLevel * (100 - mCurrentBatteryLevel)) * 1000;
+        return msPerLevel * (target - level) / 1000;
     }
 
     /*@hide */
