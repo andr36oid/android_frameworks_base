@@ -56,6 +56,7 @@ public class ScreenRecordDialog extends Activity {
     private Switch mAudioSwitch;
     private Spinner mOptions;
     private List<ScreenRecordingAudioSource> mModes;
+    private boolean mHasMic;
 
     @Inject
     public ScreenRecordDialog(RecordingController controller,
@@ -92,12 +93,12 @@ public class ScreenRecordDialog extends Activity {
         // Microphone choices only while a microphone is plugged in; the console has none.
         // Checked each time the dialog opens.
         mModes = new ArrayList<>();
-        boolean hasMic = mController.hasMicrophone();
-        if (hasMic) {
+        mHasMic = mController.hasMicrophone();
+        if (mHasMic) {
             mModes.add(MIC);
         }
         mModes.add(INTERNAL);
-        if (hasMic) {
+        if (mHasMic) {
             mModes.add(MIC_AND_INTERNAL);
         }
 
@@ -129,8 +130,11 @@ public class ScreenRecordDialog extends Activity {
         ScreenRecordingAudioSource audioMode = mAudioSwitch.isChecked()
                 ? (ScreenRecordingAudioSource) mOptions.getSelectedItem()
                 : NONE;
+        // Without a mic the list only has device audio. Record that this time, but keep a
+        // saved microphone choice for when a mic is plugged in again.
         mController.saveOptions(mAudioSwitch.isChecked(),
-                (ScreenRecordingAudioSource) mOptions.getSelectedItem(), showTaps);
+                mHasMic ? (ScreenRecordingAudioSource) mOptions.getSelectedItem() : null,
+                showTaps);
         PendingIntent startIntent = PendingIntent.getForegroundService(userContext,
                 RecordingService.REQUEST_CODE,
                 RecordingService.getStartIntent(

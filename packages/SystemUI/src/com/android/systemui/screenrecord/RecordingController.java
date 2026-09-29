@@ -206,14 +206,19 @@ public class RecordingController
         return getOptions().getBoolean(KEY_SHOW_TAPS, false);
     }
 
-    /** Remembers the dialog's choices for the next dialog and for FN + R2. */
+    /**
+     * Remembers the dialog's choices for the next dialog and for FN + R2. A null source
+     * keeps the saved one (the dialog had no microphone to offer).
+     */
     public void saveOptions(boolean audioOn, ScreenRecordingAudioSource source,
             boolean showTaps) {
-        getOptions().edit()
+        SharedPreferences.Editor editor = getOptions().edit()
                 .putBoolean(KEY_AUDIO_ON, audioOn)
-                .putString(KEY_AUDIO_SOURCE, source.name())
-                .putBoolean(KEY_SHOW_TAPS, showTaps)
-                .apply();
+                .putBoolean(KEY_SHOW_TAPS, showTaps);
+        if (source != null) {
+            editor.putString(KEY_AUDIO_SOURCE, source.name());
+        }
+        editor.apply();
     }
 
     private SharedPreferences getOptions() {
