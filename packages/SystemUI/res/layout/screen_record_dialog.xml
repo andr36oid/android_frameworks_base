@@ -137,6 +137,7 @@
                     android:layout_height="match_parent"
                     android:layout_weight="0"
                     android:layout_gravity="end"
+                    android:focusedByDefault="true"
                     android:text="@string/screenrecord_start"
                     style="@android:style/Widget.DeviceDefault.Button.Colored"/>
             </LinearLayout>

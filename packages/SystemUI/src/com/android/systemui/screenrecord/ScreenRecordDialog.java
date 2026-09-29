@@ -105,6 +105,10 @@ public class ScreenRecordDialog extends Activity {
         mOptions.setOnItemClickListenerInt((parent, view, position, id) -> {
             mAudioSwitch.setChecked(true);
         });
+
+        // Without a touchscreen the d-pad would start on the audio list, so A would open the
+        // list instead of starting. Start on the Start button; up reaches the options.
+        startBtn.requestFocus();
     }
 
     private void requestScreenCapture() {
