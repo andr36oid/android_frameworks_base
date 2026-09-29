@@ -106,6 +106,11 @@ public class ScreenRecordDialog extends Activity {
             mAudioSwitch.setChecked(true);
         });
 
+        // Last time's choices; the first time device audio is on, so clips have game sound
+        mAudioSwitch.setChecked(mController.isAudioOn());
+        mOptions.setSelection(Math.max(0, mModes.indexOf(mController.getAudioSource())));
+        mTapsSwitch.setChecked(mController.isShowTaps());
+
         // Without a touchscreen the d-pad would start on the audio list, so A would open the
         // list instead of starting. Start on the Start button; up reaches the options.
         startBtn.requestFocus();
@@ -117,6 +122,8 @@ public class ScreenRecordDialog extends Activity {
         ScreenRecordingAudioSource audioMode = mAudioSwitch.isChecked()
                 ? (ScreenRecordingAudioSource) mOptions.getSelectedItem()
                 : NONE;
+        mController.saveOptions(mAudioSwitch.isChecked(),
+                (ScreenRecordingAudioSource) mOptions.getSelectedItem(), showTaps);
         PendingIntent startIntent = PendingIntent.getForegroundService(userContext,
                 RecordingService.REQUEST_CODE,
                 RecordingService.getStartIntent(

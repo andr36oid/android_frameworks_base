@@ -24,6 +24,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.CountDownTimer;
 import android.os.UserHandle;
 import android.util.Log;
@@ -58,6 +59,11 @@ public class RecordingController
     // Same countdown as the dialog. Long enough for the toast to be gone before recording.
     private static final long HOTKEY_DELAY_MS = 3000;
     private static final long HOTKEY_INTERVAL_MS = 1000;
+    // The dialog's last choices, which FN + R2 uses too
+    private static final String OPTIONS_PREFS = "screenrecord_options";
+    private static final String KEY_AUDIO_ON = "audio_on";
+    private static final String KEY_AUDIO_SOURCE = "audio_source";
+    private static final String KEY_SHOW_TAPS = "show_taps";
 
     private boolean mIsStarting;
     private boolean mIsRecording;
@@ -125,13 +131,58 @@ public class RecordingController
         PendingIntent startIntent = PendingIntent.getForegroundService(userContext,
                 RecordingService.REQUEST_CODE,
                 RecordingService.getStartIntent(userContext, Activity.RESULT_OK,
-                        ScreenRecordingAudioSource.INTERNAL.ordinal(), false),
+                        (isAudioOn() ? getAudioSource() : ScreenRecordingAudioSource.NONE)
+                                .ordinal(),
+                        isShowTaps()),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         PendingIntent stopIntent = PendingIntent.getService(userContext,
                 RecordingService.REQUEST_CODE,
                 RecordingService.getStopIntent(userContext),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         startCountdown(HOTKEY_DELAY_MS, HOTKEY_INTERVAL_MS, startIntent, stopIntent);
+    }
+
+    /**
+     * Whether to record sound. On until the user turns it off in the dialog: the games' own
+     * sound is what a gameplay clip needs, and the console has no microphone.
+     */
+    public boolean isAudioOn() {
+        return getOptions().getBoolean(KEY_AUDIO_ON, true);
+    }
+
+    /** The sound to record when sound is on. Device audio unless the user chose otherwise. */
+    public ScreenRecordingAudioSource getAudioSource() {
+        try {
+            ScreenRecordingAudioSource source = ScreenRecordingAudioSource.valueOf(
+                    getOptions().getString(KEY_AUDIO_SOURCE,
+                            ScreenRecordingAudioSource.INTERNAL.name()));
+            if (source != ScreenRecordingAudioSource.NONE) {
+                return source;
+            }
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "Unknown saved audio source", e);
+        }
+        return ScreenRecordingAudioSource.INTERNAL;
+    }
+
+    /** Whether to show touches (the touch controls' and the joystick mouse's taps). */
+    public boolean isShowTaps() {
+        return getOptions().getBoolean(KEY_SHOW_TAPS, false);
+    }
+
+    /** Remembers the dialog's choices for the next dialog and for FN + R2. */
+    public void saveOptions(boolean audioOn, ScreenRecordingAudioSource source,
+            boolean showTaps) {
+        getOptions().edit()
+                .putBoolean(KEY_AUDIO_ON, audioOn)
+                .putString(KEY_AUDIO_SOURCE, source.name())
+                .putBoolean(KEY_SHOW_TAPS, showTaps)
+                .apply();
+    }
+
+    private SharedPreferences getOptions() {
+        return mUserContextTracker.getCurrentUserContext()
+                .getSharedPreferences(OPTIONS_PREFS, Context.MODE_PRIVATE);
     }
 
     private void showHotkeyToast(int text) {
