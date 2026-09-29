@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Button in the power menu that goes to the home screen [CHAR LIMIT=30] -->
+    <string name="global_action_home">Ekran główny</string>
+    <!-- [CHAR LIMIT=30] -->
+    <string name="global_action_app_switcher">Przełącznik aplikacji</string>
+    <string name="global_action_app_switcher_empty">Brak innych otwartych aplikacji</string>
+    <!-- [CHAR LIMIT=30] -->
+    <string name="global_action_close_apps">Zamknij aplikacje w tle</string>
+    <plurals name="global_action_close_apps_done">
+        <item quantity="one">Zamknięto <xliff:g id="count" example="1">%d</xliff:g> aplikację w tle</item>
+        <item quantity="few">Zamknięto <xliff:g id="count" example="3">%d</xliff:g> aplikacje w tle</item>
+        <item quantity="many">Zamknięto <xliff:g id="count" example="5">%d</xliff:g> aplikacji w tle</item>
+        <item quantity="other">Zamknięto <xliff:g id="count" example="3">%d</xliff:g> aplikacji w tle</item>
+    </plurals>
+    <string name="global_action_close_apps_none">Brak aplikacji w tle do zamknięcia</string>
+    <string name="global_action_kill_app">Wymuś zamknięcie (<xliff:g id="app" example="RetroArch">%1$s</xliff:g>)</string>
+    <string name="global_action_kill_app_done">Wymuszono zamknięcie: <xliff:g id="app" example="RetroArch">%1$s</xliff:g></string>
+    <!-- [CHAR LIMIT=15] -->
+    <string name="global_action_long_press_hint">Przytrzymaj</string>
+</resources>
