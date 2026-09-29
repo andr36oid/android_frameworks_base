@@ -23,17 +23,23 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
+import android.os.BatteryStats;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.PowerManager;
 import android.os.PowerSaveState;
+import android.os.RemoteException;
+import android.os.ServiceManager;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.app.IBatteryStats;
 import com.android.settingslib.fuelgauge.BatterySaverUtils;
 import com.android.settingslib.fuelgauge.Estimate;
+import com.android.settingslib.fuelgauge.EstimateKt;
 import com.android.settingslib.utils.PowerUtil;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.dagger.qualifiers.Background;
@@ -82,6 +88,14 @@ public class BatteryControllerImpl extends BroadcastReceiver implements BatteryC
     boolean mHasReceivedBattery = false;
     private Estimate mEstimate;
     private boolean mFetchingEstimate = false;
+
+    // andr36oid: without Google's enhanced estimates, the QS header asks BatteryStats for its
+    // own estimate. Asked again only when the level changed or after a minute, never on a timer.
+    private static final long STATS_ESTIMATE_MAX_AGE_MS = 60 * 1000;
+    private IBatteryStats mBatteryStats;
+    private int mStatsEstimateLevel = -1;
+    private long mStatsEstimateTime;
+    private long mStatsEstimateMs = -1;
 
     @VisibleForTesting
     @Inject
@@ -275,6 +289,8 @@ public class BatteryControllerImpl extends BroadcastReceiver implements BatteryC
                 mEstimate = null;
                 if (mEstimates.isHybridNotificationEnabled()) {
                     updateEstimate();
+                } else {
+                    updateStatsEstimate();
                 }
             }
             mFetchingEstimate = false;
@@ -302,6 +318,30 @@ public class BatteryControllerImpl extends BroadcastReceiver implements BatteryC
             if (mEstimate != null) {
                 Estimate.storeCachedEstimate(mContext, mEstimate);
             }
+        }
+    }
+
+    private void updateStatsEstimate() {
+        final long now = SystemClock.elapsedRealtime();
+        if (mLevel != mStatsEstimateLevel || now - mStatsEstimateTime > STATS_ESTIMATE_MAX_AGE_MS) {
+            mStatsEstimateLevel = mLevel;
+            mStatsEstimateTime = now;
+            mStatsEstimateMs = -1;
+            try {
+                if (mBatteryStats == null) {
+                    mBatteryStats = IBatteryStats.Stub.asInterface(
+                            ServiceManager.getService(BatteryStats.SERVICE_NAME));
+                }
+                if (mBatteryStats != null) {
+                    mStatsEstimateMs = mBatteryStats.computeBatteryTimeRemaining();
+                }
+            } catch (RemoteException e) {
+                Log.w(TAG, "BatteryStats estimate failed", e);
+            }
+        }
+        if (mStatsEstimateMs > 0) {
+            mEstimate = new Estimate(mStatsEstimateMs, false /* isBasedOnUsage */,
+                    EstimateKt.AVERAGE_TIME_TO_DISCHARGE_UNKNOWN);
         }
     }
 

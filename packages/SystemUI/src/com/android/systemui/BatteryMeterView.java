@@ -392,7 +392,11 @@ public class BatteryMeterView extends LinearLayout implements
             if (mShowPercentMode == MODE_ESTIMATE && !mCharging) {
                 mBatteryController.getEstimatedTimeRemainingString((String estimate) -> {
                     if (estimate != null) {
-                        mBatteryPercentView.setText(estimate);
+                        // andr36oid: keep the percentage next to the time left ("57% - 2 hr").
+                        mBatteryPercentView.setText(getContext().getString(
+                                com.android.settingslib.R.string.power_remaining_settings_home_page,
+                                NumberFormat.getPercentInstance().format(mLevel / 100f),
+                                estimate));
                         setContentDescription(getContext().getString(
                                 R.string.accessibility_battery_level_with_estimate,
                                 mLevel, estimate));
