@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Button in the power menu that goes to the home screen [CHAR LIMIT=30] -->
+    <string name="global_action_home">Главный экран</string>
+    <!-- Button in the power menu that opens the recent apps, also the title of the power menu's own app switcher [CHAR LIMIT=30] -->
+    <string name="global_action_app_switcher">Переключение приложений</string>
+    <!-- Toast when opening the app switcher from the power menu with no other apps open [CHAR LIMIT=NONE] -->
+    <string name="global_action_app_switcher_empty">Других открытых приложений нет</string>
+    <!-- Button in the power menu that closes every app except the one on screen [CHAR LIMIT=30] -->
+    <string name="global_action_close_apps">Закрыть фоновые приложения</string>
+    <!-- Toast after closing apps from the power menu [CHAR LIMIT=NONE] -->
+    <plurals name="global_action_close_apps_done">
+        <item quantity="one">Закрыто <xliff:g id="count" example="1">%d</xliff:g> фоновое приложение</item>
+        <item quantity="few">Закрыто <xliff:g id="count" example="3">%d</xliff:g> фоновых приложения</item>
+        <item quantity="many">Закрыто <xliff:g id="count" example="5">%d</xliff:g> фоновых приложений</item>
+        <item quantity="other">Закрыто <xliff:g id="count" example="3">%d</xliff:g> фонового приложения</item>
+    </plurals>
+    <!-- Toast after pressing close background apps in the power menu with nothing to close [CHAR LIMIT=NONE] -->
+    <string name="global_action_close_apps_none">Нет фоновых приложений</string>
+    <!-- Small button at the bottom of the power menu that force stops the app on screen [CHAR LIMIT=NONE] -->
+    <string name="global_action_kill_app">Принудительно закрыть (<xliff:g id="app" example="RetroArch">%1$s</xliff:g>)</string>
+    <!-- Toast after killing the app on screen from the power menu [CHAR LIMIT=NONE] -->
+    <string name="global_action_kill_app_done">Приложение <xliff:g id="app" example="RetroArch">%1$s</xliff:g> закрыто</string>
+    <!-- Small print below the power menu's Settings button, holding it opens the menu customization [CHAR LIMIT=15] -->
+    <string name="global_action_long_press_hint">Удерживайте</string>
+</resources>
