@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="fn_help_title">Atajos con FN</string>
+    <string name="fn_help_footer">Suelta FN para cerrar. FN solo va a la pantalla de inicio.</string>
+    <string name="fn_help_brightness">Más / menos brillo</string>
+    <string name="fn_help_screenshot">Captura de pantalla</string>
+    <string name="fn_help_last_app">Volver a la última app</string>
+    <string name="fn_help_quick_settings">Ajustes rápidos</string>
+    <string name="fn_help_joystick_mouse">Ratón con joystick</string>
+    <string name="fn_help_next_profile">Siguiente perfil de rendimiento</string>
+    <string name="fn_help_perf_overlay">Monitor de rendimiento</string>
+    <string name="fn_help_touch_editor">Editor de controles táctiles</string>
+    <string name="fn_help_state_on">activado</string>
+    <string name="fn_help_percent"><xliff:g id="percent" example="60">%1$d</xliff:g> %%</string>
+    <string name="fn_toast_brightness">Brillo: <xliff:g id="percent" example="60">%1$d</xliff:g> %%</string>
+    <string name="fn_toast_no_other_app">No hay otra app a la que cambiar</string>
+    <string name="button_remap_reset">Todos los botones han vuelto a la normalidad</string>
+</resources>
