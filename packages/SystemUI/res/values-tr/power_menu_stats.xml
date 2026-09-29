@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Power menu stats panel labels, the same as the performance overlay's [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_cpu">CPU</string>
+    <!-- Temperature of the chip [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_temp">SIC</string>
+    <!-- Battery [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_bat">PİL</string>
+    <!-- Memory [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_ram">RAM</string>
+    <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
+    <string name="global_actions_stats_description">Son 10 dakikanın sistem istatistikleri</string>
+</resources>
