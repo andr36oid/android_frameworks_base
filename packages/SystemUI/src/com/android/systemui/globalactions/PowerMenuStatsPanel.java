@@ -44,6 +44,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
     private Cell mTemp;
     private Cell mBattery;
     private Cell mRam;
+    private TextView mZram;
     private final int mLabelColor;
     private final int mValueColor;
     private final int mGoodColor;
@@ -78,6 +79,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         mTemp = new Cell(findViewById(R.id.global_actions_stats_temp));
         mBattery = new Cell(findViewById(R.id.global_actions_stats_bat));
         mRam = new Cell(findViewById(R.id.global_actions_stats_ram));
+        mZram = findViewById(R.id.global_actions_stats_zram);
         setFocusable(false);
         setFocusableInTouchMode(false);
         setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
@@ -167,6 +169,8 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 PowerMenuStatsFormat.ramValue(s.ramPercent),
                 PowerMenuStatsFormat.ramLevel(s.ramPercent),
                 PowerMenuStatsFormat.ramExtra(s.ramUsedMb, s.ramTotalMb));
+        // ✓ ZRAM on, under the RAM graph; hidden (keeping its space) while there is no swap
+        mZram.setVisibility(s.zramOn ? VISIBLE : INVISIBLE);
     }
 
     /**
