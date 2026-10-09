@@ -3933,6 +3933,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 && event.getScanCode() == FN_SCAN_CODE;
     }
 
+    /**
+     * The FN button, also when Button mapping made it send another key: it still holds the
+     * shortcuts then. Only the Home part (FN alone goes home, the shortcut list) needs Home.
+     */
+    private static boolean isFnButton(KeyEvent event) {
+        return event.getScanCode() == FN_SCAN_CODE;
+    }
+
     private static int getFnShortcut(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_VOLUME_UP:
@@ -3969,6 +3977,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
         final int repeatCount = event.getRepeatCount();
 
+        if (isFnButton(event) && !isFnKey(event)) {
+            // Remapped FN: its own key goes to the app as mapped, and is never a shortcut
+            // itself (FN mapped to Start must not take a screenshot)
+            if (down && repeatCount == 0) {
+                mFnShortcutUsed = false;
+            }
+            return false;
+        }
         if (isFnKey(event)) {
             if (down && repeatCount == 0) {
                 mFnShortcutUsed = false;
@@ -4611,9 +4627,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final int displayId = event.getDisplayId();
         final boolean isInjected = (policyFlags & WindowManagerPolicy.FLAG_INJECTED) != 0;
 
-        if (isFnKey(event)) {
+        if (isFnButton(event)) {
             mFnDown = down;
-            scheduleFnHelp(down);
+            // The list says "FN alone goes to the home screen", and a remapped FN may be a
+            // game button held for long: only for FN as Home
+            scheduleFnHelp(down && isFnKey(event));
         }
 
         // If screen is off then we treat the case where the keyguard is open but hidden
