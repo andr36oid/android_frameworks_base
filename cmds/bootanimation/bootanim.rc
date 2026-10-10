@@ -1,7 +1,9 @@
 service bootanim /system/bin/bootanimation
     class core animation
     user graphics
-    group graphics audio
+    # andr36oid: input, log and SYSLOG for the boot log on screen (BootLogScreen.cpp)
+    group graphics audio input log
+    capabilities SYSLOG
     disabled
     oneshot
     ioprio rt 0

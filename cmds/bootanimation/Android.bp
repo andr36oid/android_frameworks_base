@@ -54,7 +54,10 @@ cc_library_shared {
     name: "libbootanimation",
     defaults: ["bootanimation_defaults"],
 
-    srcs: ["BootAnimation.cpp"],
+    srcs: [
+        "BootAnimation.cpp",
+        "BootLogScreen.cpp",
+    ],
 
     shared_libs: [
         "libui",
