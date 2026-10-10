@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Power menu stats panel labels [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_cpu">CPU</string>
+    <!-- Temperature of the chip [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_temp">TEMP</string>
+    <!-- Battery [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_bat">BAT</string>
+    <!-- Memory [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_ram">RAM</string>
+    <string name="global_actions_stats_description">Statystyki systemu z ostatnich 10 minut</string>
+</resources>

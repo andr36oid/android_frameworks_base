@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Button in the power menu that goes to the home screen [CHAR LIMIT=30] -->
+    <string name="global_action_home">Ana ekran</string>
+    <!-- Button in the power menu that opens the recent apps, also the title of the power menu's own app switcher [CHAR LIMIT=30] -->
+    <string name="global_action_app_switcher">Uygulama değiştirici</string>
+    <!-- Toast when opening the app switcher from the power menu with no other apps open [CHAR LIMIT=NONE] -->
+    <string name="global_action_app_switcher_empty">Açık başka uygulama yok</string>
+    <!-- Button in the power menu that closes every app except the one on screen [CHAR LIMIT=30] -->
+    <string name="global_action_close_apps">Arka plan uygulamalarını kapat</string>
+    <!-- Toast after closing apps from the power menu [CHAR LIMIT=NONE] -->
+    <plurals name="global_action_close_apps_done">
+        <item quantity="one"><xliff:g id="count" example="1">%d</xliff:g> arka plan uygulaması kapatıldı</item>
+        <item quantity="other"><xliff:g id="count" example="3">%d</xliff:g> arka plan uygulaması kapatıldı</item>
+    </plurals>
+    <!-- Toast after pressing close background apps in the power menu with nothing to close [CHAR LIMIT=NONE] -->
+    <string name="global_action_close_apps_none">Kapatılacak arka plan uygulaması yok</string>
+    <!-- Small button at the bottom of the power menu that force stops the app on screen [CHAR LIMIT=NONE] -->
+    <string name="global_action_kill_app">Öndeki uygulamayı sonlandır (<xliff:g id="app" example="RetroArch">%1$s</xliff:g>)</string>
+    <!-- Toast after killing the app on screen from the power menu [CHAR LIMIT=NONE] -->
+    <string name="global_action_kill_app_done"><xliff:g id="app" example="RetroArch">%1$s</xliff:g> sonlandırıldı</string>
+    <!-- Small print below the power menu's Settings button, holding it opens the menu customization [CHAR LIMIT=15] -->
+    <string name="global_action_long_press_hint">Uzun basın</string>
+</resources>

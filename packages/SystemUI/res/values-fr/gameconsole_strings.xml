@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Button in the power menu that goes to the home screen [CHAR LIMIT=30] -->
+    <string name="global_action_home">Accueil</string>
+    <!-- Button in the power menu that opens the recent apps, also the title of the power menu's own app switcher [CHAR LIMIT=30] -->
+    <string name="global_action_app_switcher">Applis récentes</string>
+    <!-- Toast when opening the app switcher from the power menu with no other apps open [CHAR LIMIT=NONE] -->
+    <string name="global_action_app_switcher_empty">Aucune autre appli ouverte</string>
+    <!-- Button in the power menu that closes every app except the one on screen [CHAR LIMIT=30] -->
+    <string name="global_action_close_apps">Fermer les autres applis</string>
+    <!-- Toast after closing apps from the power menu [CHAR LIMIT=NONE] -->
+    <plurals name="global_action_close_apps_done">
+        <item quantity="one"><xliff:g id="count" example="1">%d</xliff:g> appli en arrière-plan fermée</item>
+        <item quantity="other"><xliff:g id="count" example="3">%d</xliff:g> applis en arrière-plan fermées</item>
+    </plurals>
+    <!-- Toast after pressing close background apps in the power menu with nothing to close [CHAR LIMIT=NONE] -->
+    <string name="global_action_close_apps_none">Aucune appli en arrière-plan à fermer</string>
+    <!-- Small button at the bottom of the power menu that force stops the app on screen [CHAR LIMIT=NONE] -->
+    <string name="global_action_kill_app">Forcer l\'arrêt de l\'appli (<xliff:g id="app" example="RetroArch">%1$s</xliff:g>)</string>
+    <!-- Toast after killing the app on screen from the power menu [CHAR LIMIT=NONE] -->
+    <string name="global_action_kill_app_done"><xliff:g id="app" example="RetroArch">%1$s</xliff:g> arrêtée</string>
+    <!-- Small print below the power menu's Settings button, holding it opens the menu customization [CHAR LIMIT=15] -->
+    <string name="global_action_long_press_hint">Appui long</string>
+</resources>

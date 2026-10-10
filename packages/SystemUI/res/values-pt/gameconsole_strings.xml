@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Button in the power menu that goes to the home screen [CHAR LIMIT=30] -->
+    <string name="global_action_home">Início</string>
+    <!-- Button in the power menu that opens the recent apps [CHAR LIMIT=30] -->
+    <string name="global_action_app_switcher">Alternar apps</string>
+    <!-- Toast [CHAR LIMIT=NONE] -->
+    <string name="global_action_app_switcher_empty">Nenhum outro app aberto</string>
+    <!-- Button in the power menu that closes every app except the one on screen [CHAR LIMIT=30] -->
+    <string name="global_action_close_apps">Fechar apps em segundo plano</string>
+    <!-- Toast after closing apps from the power menu [CHAR LIMIT=NONE] -->
+    <plurals name="global_action_close_apps_done">
+        <item quantity="one"><xliff:g id="count" example="1">%d</xliff:g> app em segundo plano fechado</item>
+        <item quantity="other"><xliff:g id="count" example="3">%d</xliff:g> apps em segundo plano fechados</item>
+    </plurals>
+    <!-- Toast [CHAR LIMIT=NONE] -->
+    <string name="global_action_close_apps_none">Nenhum app em segundo plano para fechar</string>
+    <!-- Small button at the bottom of the power menu that force stops the app on screen [CHAR LIMIT=NONE] -->
+    <string name="global_action_kill_app">Forçar parada do app atual (<xliff:g id="app" example="RetroArch">%1$s</xliff:g>)</string>
+    <!-- Toast after killing the app on screen from the power menu [CHAR LIMIT=NONE] -->
+    <string name="global_action_kill_app_done"><xliff:g id="app" example="RetroArch">%1$s</xliff:g> foi encerrado</string>
+    <!-- Small print below the power menu's Settings button [CHAR LIMIT=15] -->
+    <string name="global_action_long_press_hint">Segurar</string>
+</resources>
