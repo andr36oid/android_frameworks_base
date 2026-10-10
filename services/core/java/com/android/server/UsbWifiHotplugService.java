@@ -44,6 +44,10 @@ public final class UsbWifiHotplugService extends SystemService {
     private static final String ID_LIST = "/vendor/etc/wifi_id_list.txt";
     // Lets the adapter finish enumerating (and mode switching) first.
     private static final long START_DELAY_MS = 2000;
+    // Wi-Fi may still be stopping for the adapter that just went away (a replug, or the
+    // adapter re-enumerating after sleep). Check again until it has settled.
+    private static final long RETRY_DELAY_MS = 1000;
+    private static final int MAX_RETRIES = 30;
 
     // Settings.Global.WIFI_ON values meaning the user switched Wi-Fi on
     private static final int WIFI_ENABLED = 1;
@@ -51,6 +55,7 @@ public final class UsbWifiHotplugService extends SystemService {
 
     private final Handler mHandler;
     private final Runnable mStartWifi = this::startWifiIfWanted;
+    private int mRetries;
     private Set<String> mWifiIds; // "vvvv:pppp", read on first use
 
     private final UEventObserver mObserver = new UEventObserver() {
@@ -64,7 +69,7 @@ public final class UsbWifiHotplugService extends SystemService {
                 // Driver already loaded or built in
                 final String iface = event.get("INTERFACE");
                 if (iface != null && iface.startsWith("wlan")) {
-                    scheduleStart("interface " + iface);
+                    mHandler.post(() -> scheduleStart("interface " + iface));
                 }
             } else if ("usb".equals(subsystem) && "usb_device".equals(event.get("DEVTYPE"))) {
                 final String product = event.get("PRODUCT");
@@ -100,6 +105,7 @@ public final class UsbWifiHotplugService extends SystemService {
     private void scheduleStart(String reason) {
         Slog.d(TAG, "Wi-Fi hotplug check: " + reason);
         mHandler.removeCallbacks(mStartWifi);
+        mRetries = 0;
         mHandler.postDelayed(mStartWifi, START_DELAY_MS);
     }
 
@@ -151,6 +157,14 @@ public final class UsbWifiHotplugService extends SystemService {
             return;
         }
         final int state = wifi.getWifiState();
+        if (state == WifiManager.WIFI_STATE_DISABLING || state == WifiManager.WIFI_STATE_ENABLING) {
+            if (mRetries++ < MAX_RETRIES) {
+                mHandler.postDelayed(mStartWifi, RETRY_DELAY_MS);
+            } else {
+                Slog.w(TAG, "Wi-Fi did not settle, not starting it for the new adapter");
+            }
+            return;
+        }
         if (state != WifiManager.WIFI_STATE_DISABLED && state != WifiManager.WIFI_STATE_UNKNOWN) {
             return;
         }
