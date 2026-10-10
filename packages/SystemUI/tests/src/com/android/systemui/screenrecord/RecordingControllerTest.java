@@ -30,6 +30,7 @@ import androidx.test.filters.SmallTest;
 
 import com.android.systemui.SysuiTestCase;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.settings.CurrentUserContextTracker;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -58,7 +59,8 @@ public class RecordingControllerTest extends SysuiTestCase {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        mController = new RecordingController(mBroadcastDispatcher);
+        mController = new RecordingController(mBroadcastDispatcher, mContext,
+                Mockito.mock(CurrentUserContextTracker.class));
         mController.addCallback(mCallback);
     }
 
