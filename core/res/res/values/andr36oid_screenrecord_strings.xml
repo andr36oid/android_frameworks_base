@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- FN shortcut list row: FN + R2 starts or stops a screen recording
+         (PhoneWindowManager / FnShortcutHelp). One line next to the button badges, keep it short. -->
+    <string name="fn_help_screen_record">Start / stop screen recording</string>
+    <!-- Small green state after the screen recording row while a recording runs [CHAR LIMIT=8] -->
+    <string name="fn_help_screen_record_on">on</string>
+
+    <java-symbol type="string" name="fn_help_screen_record" />
+    <java-symbol type="string" name="fn_help_screen_record_on" />
+</resources>

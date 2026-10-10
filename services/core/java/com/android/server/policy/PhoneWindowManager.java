@@ -4278,8 +4278,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     null, "L2"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_R2) != FN_HOTKEY_NONE) {
-            rows.add(new FnShortcutHelp.Row("Start / stop screen recording",
-                    isSystemUiRecording() ? "on" : null, "R2"));
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_screen_record),
+                    isSystemUiRecording()
+                            ? mContext.getString(R.string.fn_help_screen_record_on) : null,
+                    "R2"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_L1) != FN_HOTKEY_NONE
                 && hasFnReceiver(TOUCH_CONTROLS_PACKAGE, ACTION_EDIT_TOUCH_CONTROLS)) {

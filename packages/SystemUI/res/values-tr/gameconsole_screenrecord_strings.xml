@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="screenrecord_hotkey_starting">Ekran kaydı 3 saniye içinde başlıyor. FN + R2 ile durdurabilirsiniz.</string>
+    <string name="screenrecord_hotkey_stopped">Ekran kaydı durduruldu. Movies klasörüne kaydediliyor.</string>
+    <string name="screenrecord_hotkey_cancelled">Ekran kaydı iptal edildi</string>
+</resources>

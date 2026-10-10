@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="screenrecord_hotkey_starting">Запись экрана начнётся через 3 секунды. FN + R2 остановит её.</string>
+    <string name="screenrecord_hotkey_stopped">Запись экрана остановлена. Сохраняется в Movies.</string>
+    <string name="screenrecord_hotkey_cancelled">Запись экрана отменена</string>
+</resources>
