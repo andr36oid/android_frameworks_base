@@ -25,6 +25,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.MoveCallback;
 import android.os.Bundle;
@@ -53,6 +54,11 @@ public class StorageNotification extends SystemUI {
     private static final String TAG = "StorageNotification";
 
     private static final String ACTION_SNOOZE_VOLUME = "com.android.systemui.action.SNOOZE_VOLUME";
+    // Set on the snooze intent of the read-only NTFS notification: only that text is snoozed
+    private static final String EXTRA_READ_ONLY = "andr36oid.extra.READ_ONLY";
+    // UUIDs of drives whose read-only NTFS notification was dismissed, until they next
+    // mount read-write
+    private static final String READ_ONLY_PREFS = "andr36oid_ntfs_read_only_dismissed";
     private static final String ACTION_FINISH_WIZARD = "com.android.systemui.action.FINISH_WIZARD";
 
     // TODO: delay some notifications to avoid bumpy fast operations
@@ -114,7 +120,11 @@ public class StorageNotification extends SystemUI {
         public void onReceive(Context context, Intent intent) {
             // TODO: kick this onto background thread
             final String fsUuid = intent.getStringExtra(VolumeRecord.EXTRA_FS_UUID);
-            mStorageManager.setVolumeSnoozed(fsUuid, true);
+            if (intent.getBooleanExtra(EXTRA_READ_ONLY, false)) {
+                setReadOnlyDismissed(fsUuid, true);
+            } else {
+                mStorageManager.setVolumeSnoozed(fsUuid, true);
+            }
         }
     };
 
@@ -366,9 +376,22 @@ public class StorageNotification extends SystemUI {
     private Notification onVolumeMounted(VolumeInfo vol) {
         final VolumeRecord rec = mStorageManager.findRecordByUuid(vol.getFsUuid());
         final DiskInfo disk = vol.getDisk();
+        // An NTFS drive that Windows left hibernated (Fast Startup) or not safely removed is
+        // opened read-only. Say so, even when this card's normal notification was dismissed
+        // before. Once this text is dismissed it stays away for this drive until it mounts
+        // read-write again.
+        final boolean windowsReadOnly = vol.getState() == VolumeInfo.STATE_MOUNTED_READ_ONLY
+                && "ntfs".equals(vol.fsType);
+        if (windowsReadOnly) {
+            if (isReadOnlyDismissed(vol.getFsUuid())) {
+                return null;
+            }
+        } else if (vol.getState() == VolumeInfo.STATE_MOUNTED) {
+            setReadOnlyDismissed(vol.getFsUuid(), false);
+        }
 
         // Don't annoy when user dismissed in past.
-        if (rec.isSnoozed() && (disk.isAdoptable() || disk.isSd())) {
+        if (rec.isSnoozed() && (disk.isAdoptable() || disk.isSd()) && !windowsReadOnly) {
             return null;
         }
 
@@ -398,8 +421,11 @@ public class StorageNotification extends SystemUI {
             }
         } else {
             final CharSequence title = disk.getDescription();
-            final CharSequence text = mContext.getString(
-                    R.string.ext_media_ready_notification_message, disk.getDescription());
+            final CharSequence text = windowsReadOnly
+                    ? mContext.getString(
+                            com.android.systemui.R.string.andr36oid_ntfs_read_only_message)
+                    : mContext.getString(R.string.ext_media_ready_notification_message,
+                            disk.getDescription());
 
             final PendingIntent browseIntent = buildBrowsePendingIntent(vol);
             final Notification.Builder builder = buildNotificationBuilder(vol, title, text)
@@ -417,7 +443,7 @@ public class StorageNotification extends SystemUI {
             }
 
             if (disk.isAdoptable() || disk.isSd()) {
-                builder.setDeleteIntent(buildSnoozeIntent(vol.getFsUuid()));
+                builder.setDeleteIntent(buildSnoozeIntent(vol.getFsUuid(), windowsReadOnly));
             }
 
             return builder.build();
@@ -727,9 +753,45 @@ public class StorageNotification extends SystemUI {
                 PendingIntent.FLAG_CANCEL_CURRENT, null, UserHandle.CURRENT);
     }
 
+    private boolean isReadOnlyDismissed(String fsUuid) {
+        if (fsUuid == null) {
+            return false;
+        }
+        try {
+            return mContext.getSharedPreferences(READ_ONLY_PREFS, Context.MODE_PRIVATE)
+                    .getBoolean(fsUuid, false);
+        } catch (IllegalStateException e) {
+            return false;
+        }
+    }
+
+    private void setReadOnlyDismissed(String fsUuid, boolean dismissed) {
+        if (fsUuid == null) {
+            return;
+        }
+        try {
+            final SharedPreferences prefs =
+                    mContext.getSharedPreferences(READ_ONLY_PREFS, Context.MODE_PRIVATE);
+            if (dismissed) {
+                prefs.edit().putBoolean(fsUuid, true).apply();
+            } else if (prefs.contains(fsUuid)) {
+                prefs.edit().remove(fsUuid).apply();
+            }
+        } catch (IllegalStateException e) {
+            Log.w(TAG, "Can't save the read-only notice state", e);
+        }
+    }
+
     private PendingIntent buildSnoozeIntent(String fsUuid) {
+        return buildSnoozeIntent(fsUuid, false);
+    }
+
+    private PendingIntent buildSnoozeIntent(String fsUuid, boolean readOnly) {
         final Intent intent = new Intent(ACTION_SNOOZE_VOLUME);
         intent.putExtra(VolumeRecord.EXTRA_FS_UUID, fsUuid);
+        if (readOnly) {
+            intent.putExtra(EXTRA_READ_ONLY, true);
+        }
 
         final int requestKey = fsUuid.hashCode();
         return PendingIntent.getBroadcastAsUser(mContext, requestKey, intent,
