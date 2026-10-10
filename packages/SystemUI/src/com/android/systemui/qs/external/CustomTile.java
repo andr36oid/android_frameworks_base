@@ -95,6 +95,15 @@ public class CustomTile extends QSTileImpl<State> implements TileChangeListener 
 
         mService = mServiceManager.getTileService();
         mServiceManager.setTileChangeListener(this);
+        if (mServiceManager.isActiveTile()) {
+            // Show the last known state without binding, like Android 12. Without a saved
+            // state the tile stays unavailable until it binds.
+            Tile t = CustomTileStatePersister.readState(mContext, mComponent, mUser);
+            if (t != null) {
+                applyTileState(t, /* overwriteNulls */ false);
+                mServiceManager.clearPendingBind();
+            }
+        }
     }
 
     @Override
@@ -191,11 +200,28 @@ public class CustomTile extends QSTileImpl<State> implements TileChangeListener 
     }
 
     public void updateState(Tile tile) {
-        mTile.setIcon(tile.getIcon());
-        mTile.setLabel(tile.getLabel());
-        mTile.setSubtitle(tile.getSubtitle());
-        mTile.setContentDescription(tile.getContentDescription());
-        mTile.setStateDescription(tile.getStateDescription());
+        applyTileState(tile, /* overwriteNulls */ true);
+        if (mServiceManager.isActiveTile()) {
+            CustomTileStatePersister.persistState(mContext, mComponent, mUser, tile);
+        }
+    }
+
+    private void applyTileState(Tile tile, boolean overwriteNulls) {
+        if (tile.getIcon() != null || overwriteNulls) {
+            mTile.setIcon(tile.getIcon());
+        }
+        if (tile.getLabel() != null || overwriteNulls) {
+            mTile.setLabel(tile.getLabel());
+        }
+        if (tile.getSubtitle() != null || overwriteNulls) {
+            mTile.setSubtitle(tile.getSubtitle());
+        }
+        if (tile.getContentDescription() != null || overwriteNulls) {
+            mTile.setContentDescription(tile.getContentDescription());
+        }
+        if (tile.getStateDescription() != null || overwriteNulls) {
+            mTile.setStateDescription(tile.getStateDescription());
+        }
         mTile.setState(tile.getState());
     }
 
@@ -222,7 +248,9 @@ public class CustomTile extends QSTileImpl<State> implements TileChangeListener 
             if (listening) {
                 updateDefaultTileAndIcon();
                 refreshState();
-                if (!mServiceManager.isActiveTile()) {
+                // An active tile without a saved state (first boot with it, or the language
+                // changed) binds once here, so it doesn't stay unavailable.
+                if (!mServiceManager.isActiveTile() || mServiceManager.hasPendingBind()) {
                     mServiceManager.setBindRequested(true);
                     mService.onStartListening();
                 }

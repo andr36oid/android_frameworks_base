@@ -45,6 +45,7 @@ import com.android.systemui.plugins.qs.QSFactory;
 import com.android.systemui.plugins.qs.QSTile;
 import com.android.systemui.plugins.qs.QSTileView;
 import com.android.systemui.qs.external.CustomTile;
+import com.android.systemui.qs.external.CustomTileStatePersister;
 import com.android.systemui.qs.external.TileLifecycleManager;
 import com.android.systemui.qs.external.TileServices;
 import com.android.systemui.qs.logging.QSLogger;
@@ -400,6 +401,7 @@ public class QSTileHost implements QSHost, Tunable, PluginListener<QSFactory>, D
                         mBroadcastDispatcher);
                 lifecycleManager.onStopListening();
                 lifecycleManager.onTileRemoved();
+                CustomTileStatePersister.removeState(mContext, component, mCurrentUser);
                 TileLifecycleManager.setTileAdded(mContext, component, false);
                 lifecycleManager.flushMessagesAndUnbind();
             }
