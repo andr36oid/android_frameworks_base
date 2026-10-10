@@ -49,6 +49,8 @@ final class PowerMenuStatsReader {
     int ramUsedMb = -1;
     int ramTotalMb = -1;
     int ramPercent = -1;
+    /** Swap is set up, which on this console is only the zram device from the fstab. */
+    boolean zramOn;
 
     private final String mRoot;
     private final String mGpuFreqPath;
@@ -91,6 +93,7 @@ final class PowerMenuStatsReader {
         copy.ramUsedMb = ramUsedMb;
         copy.ramTotalMb = ramTotalMb;
         copy.ramPercent = ramPercent;
+        copy.zramOn = zramOn;
         return copy;
     }
 
@@ -184,6 +187,8 @@ final class PowerMenuStatsReader {
         } else {
             ramTotalMb = ramUsedMb = ramPercent = -1;
         }
+        // /proc/swaps is not readable for SystemUI, meminfo is
+        zramOn = meminfoKb(meminfo, "SwapTotal:") > 0;
     }
 
     static long meminfoKb(String meminfo, String key) {

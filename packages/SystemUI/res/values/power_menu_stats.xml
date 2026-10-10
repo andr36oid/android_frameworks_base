@@ -26,6 +26,8 @@
     <dimen name="global_actions_stats_graph_gap">2dp</dimen>
     <!-- The overlay's text size -->
     <dimen name="global_actions_stats_text_size">11sp</dimen>
+    <!-- The "ZRAM on" note under the RAM graph -->
+    <dimen name="global_actions_stats_small_text_size">9sp</dimen>
 
     <!-- The overlay's colors (PerfOverlay res/values/colors.xml) -->
     <color name="global_actions_stats_background">#B3000000</color>
@@ -43,6 +45,8 @@
     <string name="global_actions_stats_bat">BAT</string>
     <!-- Memory [CHAR LIMIT=5] -->
     <string name="global_actions_stats_ram">RAM</string>
+    <!-- Small note under the RAM graph while compressed memory (zram swap) is on [CHAR LIMIT=12] -->
+    <string name="global_actions_stats_zram">\u2713 ZRAM on</string>
     <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
     <string name="global_actions_stats_description">System stats of the last 10 minutes</string>
 </resources>

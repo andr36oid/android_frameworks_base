@@ -132,6 +132,13 @@ public class PowerMenuStatsTest {
         assertEquals(976, reader.ramTotalMb);
         assertEquals(585, reader.ramUsedMb);
         assertEquals(60, reader.ramPercent);
+        assertFalse(reader.zramOn);
+        reader.sampleRam("MemTotal: 1000000 kB\nMemAvailable: 400000 kB\n"
+                + "SwapTotal:  749996 kB\nSwapFree: 700000 kB\n");
+        assertTrue(reader.zramOn);
+        assertTrue(reader.snapshot().zramOn);
+        reader.sampleRam("MemTotal: 1000000 kB\nMemAvailable: 400000 kB\nSwapTotal: 0 kB\n");
+        assertFalse(reader.zramOn);
         reader.sampleRam("nothing here");
         assertEquals(-1, reader.ramPercent);
         assertEquals(-1, PowerMenuStatsReader.meminfoKb(null, "MemTotal:"));
