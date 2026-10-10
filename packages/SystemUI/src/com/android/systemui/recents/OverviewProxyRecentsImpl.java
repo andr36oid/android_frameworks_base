@@ -35,6 +35,7 @@ import android.widget.Toast;
 
 import com.android.systemui.Dependency;
 import com.android.systemui.R;
+import com.android.systemui.globalactions.GlobalActionsComponent;
 import com.android.systemui.shared.recents.IOverviewProxy;
 import com.android.systemui.shared.system.ActivityManagerWrapper;
 import com.android.systemui.stackdivider.Divider;
@@ -57,6 +58,7 @@ public class OverviewProxyRecentsImpl implements RecentsImplementation {
     @Nullable
     private final Lazy<StatusBar> mStatusBarLazy;
     private final Optional<Divider> mDividerOptional;
+    private final Lazy<GlobalActionsComponent> mGlobalActionsLazy;
 
     private Context mContext;
     private Handler mHandler;
@@ -66,9 +68,11 @@ public class OverviewProxyRecentsImpl implements RecentsImplementation {
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     @Inject
     public OverviewProxyRecentsImpl(Optional<Lazy<StatusBar>> statusBarLazy,
-            Optional<Divider> dividerOptional) {
+            Optional<Divider> dividerOptional,
+            Lazy<GlobalActionsComponent> globalActionsLazy) {
         mStatusBarLazy = statusBarLazy.orElse(null);
         mDividerOptional = dividerOptional;
+        mGlobalActionsLazy = globalActionsLazy;
     }
 
     @Override
@@ -137,7 +141,13 @@ public class OverviewProxyRecentsImpl implements RecentsImplementation {
             }
             return;
         } else {
-            // Do nothing
+            // No quickstep launcher (none on this build): the Recents key and the other
+            // "Recents" key actions open the power menu's App switcher page, like FN + B.
+            // Not over the lock screen, like FN + B.
+            if (mStatusBarLazy != null && mStatusBarLazy.get().isKeyguardShowing()) {
+                return;
+            }
+            mGlobalActionsLazy.get().showAppSwitcher();
         }
     }
 

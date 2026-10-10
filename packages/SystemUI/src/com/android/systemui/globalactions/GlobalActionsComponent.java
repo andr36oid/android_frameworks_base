@@ -109,7 +109,12 @@ public class GlobalActionsComponent extends SystemUI implements Callbacks, Globa
         mExtension.get().showGlobalActions(this);
     }
 
-    private void showAppSwitcher() {
+    /**
+     * The power menu right on its App switcher page. FN + B, and the Recents key when there is
+     * no quickstep launcher (OverviewProxyRecentsImpl).
+     */
+    public void showAppSwitcher() {
+        if (mExtension == null) return; // not started yet
         final GlobalActions plugin = mExtension.get();
         if (!(plugin instanceof GlobalActionsImpl)) {
             // A power menu plugin has no App switcher page: open it as usual
