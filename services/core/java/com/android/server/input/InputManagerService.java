@@ -1864,7 +1864,7 @@ public class InputManagerService extends IInputManager.Stub
         Slog.i(TAG, "Resetting the hardware button remap.");
         Settings.Global.putString(mContext.getContentResolver(), HardwareButtonRemap.SETTING,
                 null);
-        Toast.makeText(mContext, "All buttons are back to normal", Toast.LENGTH_LONG).show();
+        Toast.makeText(mContext, R.string.button_remap_reset, Toast.LENGTH_LONG).show();
     }
 
     // Binder call

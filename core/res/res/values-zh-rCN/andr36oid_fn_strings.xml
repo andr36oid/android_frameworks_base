@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="fn_help_title">FN 快捷键</string>
+    <string name="fn_help_footer">松开 FN 即可关闭。单独按 FN 返回主屏幕。</string>
+    <string name="fn_help_brightness">调亮 / 调暗屏幕</string>
+    <string name="fn_help_screenshot">截图</string>
+    <string name="fn_help_last_app">回到上一个应用</string>
+    <string name="fn_help_quick_settings">快捷设置</string>
+    <string name="fn_help_joystick_mouse">摇杆鼠标</string>
+    <string name="fn_help_next_profile">下一个性能模式</string>
+    <string name="fn_help_perf_overlay">性能浮窗</string>
+    <string name="fn_help_touch_editor">触控映射编辑器</string>
+    <string name="fn_help_state_on">已开启</string>
+    <string name="fn_help_percent"><xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
+    <string name="fn_toast_brightness">亮度 <xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
+    <string name="fn_toast_no_other_app">没有其他可切换的应用</string>
+    <string name="button_remap_reset">所有按键已恢复正常</string>
+</resources>

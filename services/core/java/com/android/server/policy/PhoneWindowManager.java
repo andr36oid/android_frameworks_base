@@ -4051,7 +4051,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 break;
             case FN_HOTKEY_LAST_APP:
                 if (!switchToLastApp()) {
-                    showFnToast("No other app to switch to");
+                    showFnToast(mContext.getString(R.string.fn_toast_no_other_app));
                 }
                 break;
             case FN_HOTKEY_TOGGLE_PANEL:
@@ -4137,7 +4137,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         Settings.System.putFloatForUser(resolver, Settings.System.SCREEN_BRIGHTNESS_FLOAT,
                 brightness, UserHandle.USER_CURRENT_OR_SELF);
-        showFnToast("Brightness " + Math.round(newPosition * 100) + "%");
+        showFnToast(mContext.getString(R.string.fn_toast_brightness,
+                Math.round(newPosition * 100)));
     }
 
     // The brightness slider's curve (settingslib BrightnessUtils), on 0..1 for both sides.
@@ -4195,7 +4196,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
         // FN was held to look, so letting go must not go home
         mFnShortcutUsed = true;
-        mFnHelp.show(rows, "Let go of FN to close. FN alone goes to the home screen.");
+        mFnHelp.show(rows, mContext.getString(R.string.fn_help_footer));
     }
 
     /** Returns true if the list was showing. */
@@ -4212,36 +4213,44 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private List<FnShortcutHelp.Row> getFnHelpRows() {
         final List<FnShortcutHelp.Row> rows = new ArrayList<>();
         if (getFnShortcut(KeyEvent.KEYCODE_VOLUME_UP) != FN_HOTKEY_NONE) {
-            rows.add(new FnShortcutHelp.Row("Screen brighter / darker", getBrightnessPercent(),
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_brightness),
+                    getBrightnessPercent(),
                     "Vol+", "Vol\u2212"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_START) != FN_HOTKEY_NONE) {
-            rows.add(new FnShortcutHelp.Row("Screenshot", null, "Start"));
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_screenshot), null,
+                    "Start"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_SELECT) != FN_HOTKEY_NONE) {
-            rows.add(new FnShortcutHelp.Row("Back to the last app", null, "Select"));
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_last_app), null,
+                    "Select"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_Y) != FN_HOTKEY_NONE) {
-            rows.add(new FnShortcutHelp.Row("Quick Settings", null, "Y"));
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_quick_settings),
+                    null, "Y"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_X) != FN_HOTKEY_NONE) {
-            rows.add(new FnShortcutHelp.Row("Joystick mouse",
-                    SystemProperties.getBoolean(JOYMOUSE_ACTIVE_PROPERTY, false) ? "on" : null,
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_joystick_mouse),
+                    SystemProperties.getBoolean(JOYMOUSE_ACTIVE_PROPERTY, false)
+                            ? mContext.getString(R.string.fn_help_state_on) : null,
                     "X"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_R1) != FN_HOTKEY_NONE
                 && hasFnReceiver("org.andr36oid.cpuoverclock",
                         "org.andr36oid.cpuoverclock.action.NEXT_PROFILE")) {
-            rows.add(new FnShortcutHelp.Row("Next performance profile", null, "R1"));
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_next_profile),
+                    null, "R1"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_L2) != FN_HOTKEY_NONE
                 && hasFnReceiver("org.andr36oid.perfoverlay",
                         "org.andr36oid.perfoverlay.action.TOGGLE")) {
-            rows.add(new FnShortcutHelp.Row("Performance overlay", null, "L2"));
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_perf_overlay),
+                    null, "L2"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_L1) != FN_HOTKEY_NONE
                 && hasFnReceiver(TOUCH_CONTROLS_PACKAGE, ACTION_EDIT_TOUCH_CONTROLS)) {
-            rows.add(new FnShortcutHelp.Row("Touch controls editor", null, "L1"));
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_touch_editor),
+                    null, "L1"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_A) != FN_HOTKEY_NONE
                 && mContext.getPackageManager().resolveActivity(getContinueGameIntent(),
@@ -4278,7 +4287,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_DEFAULT),
                 UserHandle.USER_CURRENT_OR_SELF);
         final float position = brightnessToSliderPosition((current - min) / (max - min));
-        return Math.round(position * 100) + "%";
+        return mContext.getString(R.string.fn_help_percent, Math.round(position * 100));
     }
 
     /**

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="fn_help_title">Pintasan FN</string>
+    <string name="fn_help_footer">Lepaskan FN untuk menutup. FN saja kembali ke layar utama.</string>
+    <string name="fn_help_brightness">Layar lebih terang / gelap</string>
+    <string name="fn_help_screenshot">Screenshot</string>
+    <string name="fn_help_last_app">Kembali ke aplikasi terakhir</string>
+    <string name="fn_help_quick_settings">Setelan Cepat</string>
+    <string name="fn_help_joystick_mouse">Mouse joystick</string>
+    <string name="fn_help_next_profile">Profil performa berikutnya</string>
+    <string name="fn_help_perf_overlay">Overlay performa</string>
+    <string name="fn_help_touch_editor">Editor kontrol sentuh</string>
+    <string name="fn_help_state_on">aktif</string>
+    <string name="fn_help_percent"><xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
+    <string name="fn_toast_brightness">Kecerahan <xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
+    <string name="fn_toast_no_other_app">Tidak ada aplikasi lain untuk dibuka</string>
+    <string name="button_remap_reset">Semua tombol kembali normal</string>
+</resources>

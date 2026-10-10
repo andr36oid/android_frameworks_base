@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- The list that shows while FN is held (PhoneWindowManager / FnShortcutHelp).
+         The rows are one line each next to a column of button badges, so keep them short. -->
+    <!-- Title of the FN shortcut list -->
+    <string name="fn_help_title">FN shortcuts</string>
+    <!-- Hint under the FN shortcut list -->
+    <string name="fn_help_footer">Let go of FN to close. FN alone goes to the home screen.</string>
+    <!-- FN shortcut list row: FN + Vol+ / Vol- -->
+    <string name="fn_help_brightness">Screen brighter / darker</string>
+    <!-- FN shortcut list row: FN + Start -->
+    <string name="fn_help_screenshot">Screenshot</string>
+    <!-- FN shortcut list row: FN + Select -->
+    <string name="fn_help_last_app">Back to the last app</string>
+    <!-- FN shortcut list row: FN + Y opens the notification shade -->
+    <string name="fn_help_quick_settings">Quick Settings</string>
+    <!-- FN shortcut list row: FN + X -->
+    <string name="fn_help_joystick_mouse">Joystick mouse</string>
+    <!-- FN shortcut list row: FN + R1 -->
+    <string name="fn_help_next_profile">Next performance profile</string>
+    <!-- FN shortcut list row: FN + L2 -->
+    <string name="fn_help_perf_overlay">Performance overlay</string>
+    <!-- FN shortcut list row: FN + L1 -->
+    <string name="fn_help_touch_editor">Touch controls editor</string>
+    <!-- Small green state after the joystick mouse row while the mouse is on [CHAR LIMIT=8] -->
+    <string name="fn_help_state_on">on</string>
+    <!-- Small green state after the brightness row: the screen brightness in percent -->
+    <string name="fn_help_percent"><xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
+    <!-- Toast after FN + Vol+ / Vol- -->
+    <string name="fn_toast_brightness">Brightness <xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
+    <!-- Toast after FN + Select when there is no app to go back to -->
+    <string name="fn_toast_no_other_app">No other app to switch to</string>
+    <!-- Toast after both volume buttons were held to undo the button remap -->
+    <string name="button_remap_reset">All buttons are back to normal</string>
+
+    <java-symbol type="string" name="fn_help_title" />
+    <java-symbol type="string" name="fn_help_footer" />
+    <java-symbol type="string" name="fn_help_brightness" />
+    <java-symbol type="string" name="fn_help_screenshot" />
+    <java-symbol type="string" name="fn_help_last_app" />
+    <java-symbol type="string" name="fn_help_quick_settings" />
+    <java-symbol type="string" name="fn_help_joystick_mouse" />
+    <java-symbol type="string" name="fn_help_next_profile" />
+    <java-symbol type="string" name="fn_help_perf_overlay" />
+    <java-symbol type="string" name="fn_help_touch_editor" />
+    <java-symbol type="string" name="fn_help_state_on" />
+    <java-symbol type="string" name="fn_help_percent" />
+    <java-symbol type="string" name="fn_toast_brightness" />
+    <java-symbol type="string" name="fn_toast_no_other_app" />
+    <java-symbol type="string" name="button_remap_reset" />
+</resources>

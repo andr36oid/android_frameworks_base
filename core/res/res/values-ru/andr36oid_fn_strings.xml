@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="fn_help_title">Сочетания с FN</string>
+    <string name="fn_help_footer">Отпустите FN, чтобы закрыть. Одна FN ведёт на главный экран.</string>
+    <string name="fn_help_brightness">Экран ярче / темнее</string>
+    <string name="fn_help_screenshot">Скриншот</string>
+    <string name="fn_help_last_app">Назад к прошлому приложению</string>
+    <string name="fn_help_quick_settings">Быстрые настройки</string>
+    <string name="fn_help_joystick_mouse">Мышь-джойстик</string>
+    <string name="fn_help_next_profile">Следующий профиль производительности</string>
+    <string name="fn_help_perf_overlay">Оверлей производительности</string>
+    <string name="fn_help_touch_editor">Редактор сенсорного управления</string>
+    <string name="fn_help_state_on">вкл.</string>
+    <string name="fn_help_percent"><xliff:g id="percent" example="60">%1$d</xliff:g> %%</string>
+    <string name="fn_toast_brightness">Яркость: <xliff:g id="percent" example="60">%1$d</xliff:g> %%</string>
+    <string name="fn_toast_no_other_app">Нет другого приложения для переключения</string>
+    <string name="button_remap_reset">Все кнопки снова работают как обычно</string>
+</resources>

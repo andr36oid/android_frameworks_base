@@ -29,6 +29,8 @@ import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.android.internal.R;
+
 import java.util.List;
 
 /**
@@ -126,7 +128,8 @@ final class FnShortcutHelp {
         background.setStroke(Math.max(1, dp(1.5f)), BORDER_COLOR);
         panel.setBackground(background);
 
-        final TextView title = text("FN shortcuts", 17, TITLE_COLOR);
+        final TextView title = text(mContext.getString(R.string.fn_help_title), 17,
+                TITLE_COLOR);
         title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         title.setPadding(0, 0, 0, dp(6));
         panel.addView(title);
