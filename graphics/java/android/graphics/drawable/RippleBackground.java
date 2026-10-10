@@ -37,6 +37,14 @@ class RippleBackground extends RippleComponent {
 
     private float mOpacity = 0;
 
+    /**
+     * The consoles have no touchscreen, so the d-pad focus fill is the only thing that shows
+     * where you are. Stock .6 of the 10% Material highlight is a 6% tint, invisible on the black
+     * theme; 2.4 gives about 24%.
+     */
+    private static final float FOCUS_OPACITY = 2.4f;
+    private static final int FOCUS_MIN_CAP = 64;
+
     /** Whether this ripple is bounded. */
     private boolean mIsBounded;
 
@@ -55,7 +63,10 @@ class RippleBackground extends RippleComponent {
 
     public void draw(Canvas c, Paint p) {
         final int origAlpha = p.getAlpha();
-        final int alpha = Math.min((int) (origAlpha * mOpacity + 0.5f), 255);
+        // Capped at the ripple colour's own alpha (at least FOCUS_MIN_CAP), so the stronger
+        // focus fill below never gets more solid than a press would.
+        final int alpha = Math.min((int) (origAlpha * mOpacity + 0.5f),
+                Math.min(Math.max(origAlpha, FOCUS_MIN_CAP), 255));
         if (alpha > 0) {
             p.setAlpha(alpha);
             c.drawCircle(0, 0, mTargetRadius, p);
@@ -79,9 +90,9 @@ class RippleBackground extends RippleComponent {
 
     private void onStateChanged() {
         // Hover             = .2 * alpha
-        // Focus             = .6 * alpha
-        // Focused + Hovered = .6 * alpha
-        float newOpacity = mFocused ? .6f : mHovered ? .2f : 0f;
+        // Focus             = FOCUS_OPACITY * alpha (stock: .6)
+        // Focused + Hovered = FOCUS_OPACITY * alpha
+        float newOpacity = mFocused ? FOCUS_OPACITY : mHovered ? .2f : 0f;
         if (mAnimator != null) {
             mAnimator.cancel();
             mAnimator = null;
