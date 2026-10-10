@@ -141,6 +141,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        Dependency.get(TunerService.class).removeTunable(mClockController);
         Dependency.get(StatusBarIconController.class).removeIconGroup(mDarkIconManager);
         if (mNetworkController.hasEmergencyCryptKeeperText()) {
             mNetworkController.removeCallback(mSignalCallback);
@@ -148,7 +149,17 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
     }
 
     @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Dependency.get(TunerService.class).removeTunable(this);
+    }
+
+    @Override
     public void onTuningChanged(String key, String newValue) {
+        if (getContext() == null) {
+            // Detached (the status bar was rebuilt); the new fragment handles it
+            return;
+        }
         boolean wasClockBlacklisted = mIsClockBlacklisted;
         mIsClockBlacklisted = StatusBarIconController.getIconBlacklist(
                 getContext(), newValue).contains("clock");

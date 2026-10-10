@@ -92,7 +92,7 @@ public final class UserspaceRebootLogger {
      */
     public static boolean shouldLogUserspaceRebootEvent() {
         if (!PowerManager.isRebootingUserspaceSupportedImpl()) {
-            Slog.wtf(TAG, "Userspace reboot is not supported.");
+            // Asked at every boot; nothing to log on devices without userspace reboot
             return false;
         }
 
