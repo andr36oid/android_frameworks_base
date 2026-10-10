@@ -25,6 +25,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.os.CountDownTimer;
 import android.os.UserHandle;
 import android.provider.Settings;
@@ -164,13 +166,17 @@ public class RecordingController
         return getOptions().getBoolean(KEY_AUDIO_ON, true);
     }
 
-    /** The sound to record when sound is on. Device audio unless the user chose otherwise. */
+    /**
+     * The sound to record when sound is on. Device audio unless the user chose otherwise.
+     * A microphone choice falls back to device audio while no microphone is plugged in.
+     */
     public ScreenRecordingAudioSource getAudioSource() {
         try {
             ScreenRecordingAudioSource source = ScreenRecordingAudioSource.valueOf(
                     getOptions().getString(KEY_AUDIO_SOURCE,
                             ScreenRecordingAudioSource.INTERNAL.name()));
-            if (source != ScreenRecordingAudioSource.NONE) {
+            if (source == ScreenRecordingAudioSource.INTERNAL
+                    || (source != ScreenRecordingAudioSource.NONE && hasMicrophone())) {
                 return source;
             }
         } catch (IllegalArgumentException e) {
@@ -179,19 +185,54 @@ public class RecordingController
         return ScreenRecordingAudioSource.INTERNAL;
     }
 
+    /**
+     * Whether a microphone is there right now: a USB or wired headset or USB microphone, or
+     * a built-in one on devices that have it. The audio policy always lists a built-in mic,
+     * even on consoles without one, so that type only counts when the config says so.
+     */
+    public boolean hasMicrophone() {
+        AudioManager audioManager = mContext.getSystemService(AudioManager.class);
+        if (audioManager == null) {
+            return false;
+        }
+        boolean builtinMic = mContext.getResources().getBoolean(
+                R.bool.config_screenRecordBuiltinMic);
+        for (AudioDeviceInfo device : audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)) {
+            switch (device.getType()) {
+                case AudioDeviceInfo.TYPE_BUILTIN_MIC:
+                    if (builtinMic) {
+                        return true;
+                    }
+                    break;
+                case AudioDeviceInfo.TYPE_WIRED_HEADSET:
+                case AudioDeviceInfo.TYPE_USB_HEADSET:
+                case AudioDeviceInfo.TYPE_USB_DEVICE:
+                    return true;
+                default:
+                    break;
+            }
+        }
+        return false;
+    }
+
     /** Whether to show touches (the touch controls' and the joystick mouse's taps). */
     public boolean isShowTaps() {
         return getOptions().getBoolean(KEY_SHOW_TAPS, false);
     }
 
-    /** Remembers the dialog's choices for the next dialog and for FN + R2. */
+    /**
+     * Remembers the dialog's choices for the next dialog and for FN + R2. A null source
+     * keeps the saved one (the dialog had no microphone to offer).
+     */
     public void saveOptions(boolean audioOn, ScreenRecordingAudioSource source,
             boolean showTaps) {
-        getOptions().edit()
+        SharedPreferences.Editor editor = getOptions().edit()
                 .putBoolean(KEY_AUDIO_ON, audioOn)
-                .putString(KEY_AUDIO_SOURCE, source.name())
-                .putBoolean(KEY_SHOW_TAPS, showTaps)
-                .apply();
+                .putBoolean(KEY_SHOW_TAPS, showTaps);
+        if (source != null) {
+            editor.putString(KEY_AUDIO_SOURCE, source.name());
+        }
+        editor.apply();
     }
 
     private SharedPreferences getOptions() {
