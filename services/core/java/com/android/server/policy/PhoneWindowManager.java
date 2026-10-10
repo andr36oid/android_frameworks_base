@@ -2004,7 +2004,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     preloadRecentApps();
                 }
             } else if (longPress) {
-                if (!keyguardOn && !mHomeConsumed &&
+                // andr36oid: FN is Home, and FN held shows the shortcut list. The long press
+                // action (Menu here) would reach the app in front and take its focus away.
+                if (!keyguardOn && !mHomeConsumed && !isFnKey(event) &&
                         mHomeLongPressAction != Action.NOTHING) {
                     if (mHomeLongPressAction != Action.APP_SWITCH) {
                         cancelPreloadRecentApps();
