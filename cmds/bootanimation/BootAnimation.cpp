@@ -581,11 +581,19 @@ bool BootAnimation::threadLoop() {
     bool result;
     // We have no bootanimation file, so we use the stock android logo
     // animation.
-    if (mZipFileName.isEmpty()) {
+    if (logRequested()) {
+        // andr36oid: the boot log instead of the animation
+        result = logScreen();
+    } else if (mZipFileName.isEmpty()) {
         result = android();
     } else {
         result = movie();
     }
+    // Select pressed while the animation ran
+    if (mLogMode && !exitPending()) {
+        result = logScreen();
+    }
+    closeLogKeys();
 
     eglMakeCurrent(mDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroyContext(mDisplay, mContext);
@@ -659,7 +667,7 @@ bool BootAnimation::android() {
             usleep(sleepTime);
 
         checkExit();
-    } while (!exitPending());
+    } while (!exitPending() && !logRequested());
 
     glDeleteTextures(1, &mAndroid[0].name);
     glDeleteTextures(1, &mAndroid[1].name);
@@ -1129,14 +1137,19 @@ bool BootAnimation::playAnimation(const Animation& animation) {
         // Handle animation package
         if (part.animation != nullptr) {
             playAnimation(*part.animation);
-            if (exitPending())
+            if (exitPending() || mLogMode)
                 break;
             continue; //to next part
         }
+        if (mLogMode)
+            break;
 
         for (int r=0 ; !part.count || r<part.count ; r++) {
             // Exit any non playuntil complete parts immediately
             if(exitPending() && !part.playUntilComplete)
+                break;
+            // andr36oid: the boot log takes over
+            if (mLogMode)
                 break;
 
             mCallbacks->playPart(i, part, r);
@@ -1147,7 +1160,8 @@ bool BootAnimation::playAnimation(const Animation& animation) {
                     part.backgroundColor[2],
                     1.0f);
 
-            for (size_t j=0 ; j<fcount && (!exitPending() || part.playUntilComplete) ; j++) {
+            for (size_t j=0 ; j<fcount && (!exitPending() || part.playUntilComplete)
+                    && !logRequested() ; j++) {
                 processDisplayEvents();
 
                 const int animationX = (mWidth - animation.width) / 2;

@@ -17,6 +17,7 @@
 #ifndef ANDROID_BOOTANIMATION_H
 #define ANDROID_BOOTANIMATION_H
 
+#include <string>
 #include <vector>
 #include <queue>
 
@@ -175,6 +176,11 @@ private:
 
     void checkExit();
 
+    // andr36oid: the boot log on screen (BootLogScreen.cpp)
+    bool logRequested();
+    bool logScreen();
+    void closeLogKeys();
+
     void handleViewport(nsecs_t timestep);
 
     sp<SurfaceComposerClient>       mSession;
@@ -197,6 +203,11 @@ private:
     bool        mTimeIsAccurate;
     bool        mTimeFormat12Hour;
     bool        mShuttingDown;
+    bool        mLogMode = false;
+    std::string mLogReason;
+    bool        mKeysOpened = false;
+    std::vector<int> mKeyFds;
+    nsecs_t     mLastKeyCheck = 0;
     String8     mZipFileName;
     SortedVector<String8> mLoadedFiles;
     sp<TimeCheckThread> mTimeCheckThread = nullptr;
