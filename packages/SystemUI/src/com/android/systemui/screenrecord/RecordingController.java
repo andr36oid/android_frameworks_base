@@ -27,6 +27,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.CountDownTimer;
 import android.os.UserHandle;
+import android.provider.Settings;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -56,6 +57,8 @@ public class RecordingController
      * cancels the one running. Only senders with STATUS_BAR_SERVICE (the system) are heard.
      */
     public static final String ACTION_TOGGLE = "com.android.systemui.screenrecord.TOGGLE";
+    /** Settings.Global: 1 while SystemUI records the screen. */
+    public static final String SETTING_RECORDING = "andr36oid_screen_recording";
     // Same countdown as the dialog. Long enough for the toast to be gone before recording.
     private static final long HOTKEY_DELAY_MS = 3000;
     private static final long HOTKEY_INTERVAL_MS = 1000;
@@ -105,6 +108,17 @@ public class RecordingController
         // Not through the BroadcastDispatcher, which can't require a permission from the sender
         mContext.registerReceiver(mToggleReceiver, new IntentFilter(ACTION_TOGGLE),
                 Manifest.permission.STATUS_BAR_SERVICE, null);
+        // A new SystemUI isn't recording, also if the last one died while it did
+        publishRecording(false);
+    }
+
+    /**
+     * For the FN shortcut list in system_server, which can't ask MediaProjectionManager:
+     * that call needs MANAGE_MEDIA_PROJECTION from a caller in another process.
+     */
+    private void publishRecording(boolean isRecording) {
+        Settings.Global.putInt(mContext.getContentResolver(), SETTING_RECORDING,
+                isRecording ? 1 : 0);
     }
 
     /**
@@ -302,6 +316,7 @@ public class RecordingController
      */
     public synchronized void updateState(boolean isRecording) {
         mIsRecording = isRecording;
+        publishRecording(isRecording);
         for (RecordingStateChangeCallback cb : mListeners) {
             if (isRecording) {
                 cb.onRecordingStart();

@@ -140,8 +140,6 @@ import android.media.AudioManager;
 import android.media.AudioManagerInternal;
 import android.media.AudioSystem;
 import android.media.IAudioService;
-import android.media.projection.MediaProjectionInfo;
-import android.media.projection.MediaProjectionManager;
 import android.media.session.MediaSessionLegacyHelper;
 import android.os.Binder;
 import android.os.Bundle;
@@ -4261,11 +4259,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     /** SystemUI's screen recorder is the one app that records without asking first. */
     private boolean isSystemUiRecording() {
-        final MediaProjectionManager projections =
-                mContext.getSystemService(MediaProjectionManager.class);
-        final MediaProjectionInfo info =
-                projections != null ? projections.getActiveProjectionInfo() : null;
-        return info != null && SCREEN_RECORD_PACKAGE.equals(info.getPackageName());
+        // Published by SystemUI's RecordingController. MediaProjectionManager can't tell
+        // from here: it wants MANAGE_MEDIA_PROJECTION from a caller in another process and
+        // threw at system_server, which took the whole UI down.
+        return Settings.Global.getInt(mContext.getContentResolver(),
+                "andr36oid_screen_recording", 0) != 0;
     }
 
     private String getBrightnessPercent() {
