@@ -30,15 +30,20 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.SystemProperties;
 import android.util.Log;
 import android.util.PrintWriterPrinter;
+import android.util.Xml;
 
 import com.android.internal.util.XmlUtils;
 
+import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -58,6 +63,10 @@ class SoundEffectsHelper {
 
     /* Sound effect file names  */
     private static final String SOUND_EFFECTS_PATH = "/media/audio/ui/";
+    // andr36oid: the sound set picked in Settings > Personalization. "retro" reads the list
+    // from this file instead of the framework's audio_assets.xml.
+    private static final String PROP_UI_SOUNDS = "persist.andr36oid.ui_sounds";
+    private static final String RETRO_ASSETS = "/product/etc/andr36oid/audio_assets_retro.xml";
 
     private static final int EFFECT_NOT_IN_SOUND_POOL = 0; // SoundPool sample IDs > 0
 
@@ -234,6 +243,9 @@ class SoundEffectsHelper {
         }
         mSoundPool.release();
         mSoundPool = null;
+        // andr36oid: read the sound list again on the next load, so a new sound set
+        // (persist.andr36oid.ui_sounds) applies without a restart
+        mResources.clear();
         logEvent("effects unloading completed");
     }
 
@@ -320,7 +332,8 @@ class SoundEffectsHelper {
     }
 
     private void loadTouchSoundAssets() {
-        XmlResourceParser parser = null;
+        XmlPullParser parser = null;
+        InputStream retroAssets = null;
 
         // only load assets once.
         if (!mResources.isEmpty()) {
@@ -330,7 +343,15 @@ class SoundEffectsHelper {
         loadTouchSoundAssetDefaults();
 
         try {
-            parser = mContext.getResources().getXml(com.android.internal.R.xml.audio_assets);
+            if ("retro".equals(SystemProperties.get(PROP_UI_SOUNDS))
+                    && new File(RETRO_ASSETS).isFile()) {
+                retroAssets = new FileInputStream(RETRO_ASSETS);
+                parser = Xml.newPullParser();
+                parser.setInput(retroAssets, null);
+                logEvent("touch sounds from " + RETRO_ASSETS);
+            } else {
+                parser = mContext.getResources().getXml(com.android.internal.R.xml.audio_assets);
+            }
 
             XmlUtils.beginDocument(parser, TAG_AUDIO_ASSETS);
             String version = parser.getAttributeValue(null, ATTR_VERSION);
@@ -383,8 +404,15 @@ class SoundEffectsHelper {
         } catch (IOException e) {
             Log.w(TAG, "I/O exception reading touch sound assets", e);
         } finally {
-            if (parser != null) {
-                parser.close();
+            if (parser instanceof XmlResourceParser) {
+                ((XmlResourceParser) parser).close();
+            }
+            if (retroAssets != null) {
+                try {
+                    retroAssets.close();
+                } catch (IOException e) {
+                    // nothing to do
+                }
             }
         }
     }
