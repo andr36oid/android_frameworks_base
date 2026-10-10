@@ -839,7 +839,7 @@ class StorageManagerService extends IStorageManager.Stub
                 case H_VOLUME_STATE_CHANGED: {
                     final SomeArgs args = (SomeArgs) msg.obj;
                     onVolumeStateChangedAsync((VolumeInfo) args.arg1, (int) args.arg2,
-                            (int) args.arg3);
+                            (int) args.arg3, (int[]) args.arg4);
                 }
             }
         }
@@ -1405,6 +1405,9 @@ class StorageManagerService extends IStorageManager.Stub
                     args.arg1 = vol;
                     args.arg2 = oldState;
                     args.arg3 = newState;
+                    // Users unlocked after this point get the volume's state from
+                    // completeUnlockUser(), so only these may get a broadcast for it
+                    args.arg4 = mSystemUnlockedUsers.clone();
                     mHandler.obtainMessage(H_VOLUME_STATE_CHANGED, args).sendToTarget();
                     onVolumeStateChangedLocked(vol, oldState, newState);
                 }
@@ -1618,7 +1621,8 @@ class StorageManagerService extends IStorageManager.Stub
     }
 
 
-    private void onVolumeStateChangedAsync(VolumeInfo vol, int oldState, int newState) {
+    private void onVolumeStateChangedAsync(VolumeInfo vol, int oldState, int newState,
+            int[] unlockedUsers) {
         synchronized (mLock) {
             // Remember that we saw this volume so we're ready to accept user
             // metadata, or so we can annoy them when a private volume is ejected
@@ -1681,7 +1685,7 @@ class StorageManagerService extends IStorageManager.Stub
                 // Kick state changed event towards all started users. Any users
                 // started after this point will trigger additional
                 // user-specific broadcasts.
-                for (int userId : mSystemUnlockedUsers) {
+                for (int userId : unlockedUsers) {
                     if (vol.isVisibleForRead(userId)) {
                         final StorageVolume userVol = vol.buildStorageVolume(mContext, userId,
                                 false);
