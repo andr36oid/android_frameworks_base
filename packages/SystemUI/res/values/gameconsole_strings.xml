@@ -34,6 +34,8 @@
     <string name="global_action_kill_app">Kill foreground app (<xliff:g id="app" example="RetroArch">%1$s</xliff:g>)</string>
     <!-- Toast after killing the app on screen from the power menu [CHAR LIMIT=NONE] -->
     <string name="global_action_kill_app_done">Killed <xliff:g id="app" example="RetroArch">%1$s</xliff:g></string>
+    <!-- Power menu tile that goes back into the last game played (Game comfort's Continue) [CHAR LIMIT=NONE] -->
+    <string name="global_action_continue_game">Continue: <xliff:g id="game" example="Tetris">%1$s</xliff:g></string>
     <!-- Small print below the power menu's Settings button, holding it opens the menu customization [CHAR LIMIT=15] -->
     <string name="global_action_long_press_hint">Long-press</string>
 </resources>
