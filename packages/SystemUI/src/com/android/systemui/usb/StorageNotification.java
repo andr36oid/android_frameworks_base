@@ -315,6 +315,13 @@ public class StorageNotification extends SystemUI {
         }
 
         final Notification notif;
+        // andr36oid: EASYROMS sits on the card Android itself runs from. It can't be
+        // ejected or set up on its own, so it gets no notification at all.
+        if (isOsCard(vol.getDisk())) {
+            mNotificationManager.cancelAsUser(vol.getId(), SystemMessage.NOTE_STORAGE_PUBLIC,
+                    UserHandle.of(vol.getMountUserId()));
+            return;
+        }
         switch (vol.getState()) {
             case VolumeInfo.STATE_UNMOUNTED:
                 notif = onVolumeUnmounted(vol);
@@ -353,6 +360,11 @@ public class StorageNotification extends SystemUI {
             mNotificationManager.cancelAsUser(vol.getId(), SystemMessage.NOTE_STORAGE_PUBLIC,
                     UserHandle.of(vol.getMountUserId()));
         }
+    }
+
+    /** The card Android runs from: mmcblk0, the console's only card slot. */
+    private static boolean isOsCard(DiskInfo disk) {
+        return disk != null && "disk:179,0".equals(disk.getId());
     }
 
     private Notification onVolumeUnmounted(VolumeInfo vol) {
