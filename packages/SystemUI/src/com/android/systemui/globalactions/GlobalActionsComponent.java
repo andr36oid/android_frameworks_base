@@ -14,7 +14,11 @@
 
 package com.android.systemui.globalactions;
 
+import android.Manifest;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 
@@ -37,6 +41,13 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class GlobalActionsComponent extends SystemUI implements Callbacks, GlobalActionsManager {
+
+    /**
+     * FN + B (PhoneWindowManager): the power menu right on its App switcher page. Only the
+     * system may send it.
+     */
+    private static final String ACTION_SHOW_APP_SWITCHER =
+            "com.android.systemui.action.SHOW_APP_SWITCHER";
 
     private final CommandQueue mCommandQueue;
     private final ExtensionController mExtensionController;
@@ -69,6 +80,13 @@ public class GlobalActionsComponent extends SystemUI implements Callbacks, Globa
                 .build();
         mPlugin = mExtension.get();
         mCommandQueue.addCallback(this);
+        mContext.registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                showAppSwitcher();
+            }
+        }, new IntentFilter(ACTION_SHOW_APP_SWITCHER), Manifest.permission.STATUS_BAR_SERVICE,
+                null);
         // History for the graphs of the power menu stats panel
         PowerMenuStatsPanel.startSampling(mContext);
     }
@@ -89,6 +107,20 @@ public class GlobalActionsComponent extends SystemUI implements Callbacks, Globa
     public void handleShowGlobalActionsMenu() {
         mStatusBarKeyguardViewManager.setGlobalActionsVisible(true);
         mExtension.get().showGlobalActions(this);
+    }
+
+    private void showAppSwitcher() {
+        final GlobalActions plugin = mExtension.get();
+        if (!(plugin instanceof GlobalActionsImpl)) {
+            // A power menu plugin has no App switcher page: open it as usual
+            handleShowGlobalActionsMenu();
+            return;
+        }
+        // Like handleShowGlobalActionsMenu, but only when the menu really opens: with no
+        // other app open, or with a recents provider, it stays closed
+        if (((GlobalActionsImpl) plugin).showAppSwitcher()) {
+            mStatusBarKeyguardViewManager.setGlobalActionsVisible(true);
+        }
     }
 
     @Override
