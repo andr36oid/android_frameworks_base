@@ -30,6 +30,8 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.MoveCallback;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.os.StrictMode;
 import android.os.UserHandle;
 import android.os.storage.DiskInfo;
@@ -40,6 +42,7 @@ import android.os.storage.VolumeRecord;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
+import android.text.format.Formatter;
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -59,6 +62,16 @@ public class StorageNotification extends SystemUI {
     // UUIDs of drives whose read-only NTFS notification was dismissed, until they next
     // mount read-write
     private static final String READ_ONLY_PREFS = "andr36oid_ntfs_read_only_dismissed";
+
+    // andr36oid: a card that wasn't unmounted cleanly gets a full repair before it
+    // mounts, minutes on a big card full of ROMs. vold skips the check of a clean exFAT
+    // card, so one still checking after REPAIR_NOTICE_DELAY_MS is being repaired. The
+    // notice uses the alerts channel so it pops up over the game, and pops up again every
+    // minute until the card is mounted.
+    private static final long REPAIR_NOTICE_DELAY_MS = 2 * 1000;
+    private static final long REPAIR_NOTICE_REPEAT_MS = 60 * 1000;
+    private static final String REPAIR_TAG = "andr36oid_repair:";
+    private final Handler mRepairHandler = new Handler(Looper.getMainLooper());
     private static final String ACTION_FINISH_WIZARD = "com.android.systemui.action.FINISH_WIZARD";
 
     // TODO: delay some notifications to avoid bumpy fast operations
@@ -314,6 +327,8 @@ public class StorageNotification extends SystemUI {
             return;
         }
 
+        updateRepairNotice(vol);
+
         final Notification notif;
         // andr36oid: EASYROMS sits on the card Android itself runs from. It can't be
         // ejected or set up on its own, so it gets no notification at all.
@@ -370,6 +385,64 @@ public class StorageNotification extends SystemUI {
     private Notification onVolumeUnmounted(VolumeInfo vol) {
         // Ignored
         return null;
+    }
+
+    private void updateRepairNotice(VolumeInfo vol) {
+        final String id = vol.getId().intern();
+        final UserHandle user = UserHandle.of(vol.getMountUserId());
+        if (vol.getState() != VolumeInfo.STATE_CHECKING) {
+            mRepairHandler.removeCallbacksAndMessages(id);
+            mNotificationManager.cancelAsUser(REPAIR_TAG + id,
+                    SystemMessage.NOTE_STORAGE_PUBLIC, user);
+            return;
+        }
+        if (mRepairHandler.hasMessages(0, id)) {
+            return;
+        }
+        final long started = System.currentTimeMillis();
+        final Runnable notice = new Runnable() {
+            @Override
+            public void run() {
+                final VolumeInfo now = mStorageManager.findVolumeById(id);
+                if (now == null || now.getState() != VolumeInfo.STATE_CHECKING
+                        || !"exfat".equals(now.fsType)) {
+                    return;
+                }
+                showRepairNotice(now, user, started);
+                mRepairHandler.postAtTime(this, id,
+                        SystemClock.uptimeMillis() + REPAIR_NOTICE_REPEAT_MS);
+            }
+        };
+        mRepairHandler.postAtTime(notice, id, SystemClock.uptimeMillis() + REPAIR_NOTICE_DELAY_MS);
+    }
+
+    private void showRepairNotice(VolumeInfo vol, UserHandle user, long started) {
+        final DiskInfo disk = vol.getDisk();
+        final CharSequence name = !TextUtils.isEmpty(vol.fsLabel) ? vol.fsLabel
+                : disk != null ? disk.getDescription() : vol.getId();
+        final CharSequence size = disk != null
+                ? Formatter.formatShortFileSize(mContext, disk.size) : "";
+        final CharSequence title = mContext.getString(
+                com.android.systemui.R.string.andr36oid_repair_title, name, size);
+        final CharSequence text = mContext.getString(
+                com.android.systemui.R.string.andr36oid_repair_message);
+        final Notification notif = new Notification.Builder(mContext, NotificationChannels.ALERTS)
+                .setSmallIcon(R.drawable.ic_sd_card_48dp)
+                .setColor(mContext.getColor(R.color.system_notification_accent_color))
+                .setContentTitle(title)
+                .setContentText(text)
+                .setStyle(new Notification.BigTextStyle().bigText(text))
+                .setWhen(started)
+                .setShowWhen(true)
+                .setUsesChronometer(true)
+                .setOngoing(true)
+                .setCategory(Notification.CATEGORY_PROGRESS)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setLocalOnly(true)
+                .extend(new Notification.TvExtender())
+                .build();
+        mNotificationManager.notifyAsUser(REPAIR_TAG + vol.getId().intern(),
+                SystemMessage.NOTE_STORAGE_PUBLIC, notif, user);
     }
 
     private Notification onVolumeChecking(VolumeInfo vol) {
