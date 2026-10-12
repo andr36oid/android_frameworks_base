@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Toast when a card in the second slot is found during the first start and stays unmounted until the setup is done. %1$s is EASYROMS (the volume label) or andr36oid_card_held_sd_card. -->
+    <string name="andr36oid_card_held"><xliff:g id="name" example="EASYROMS">%1$s</xliff:g> seen, will mount after initial setup completes…</string>
+    <!-- The card's name in andr36oid_card_held when it isn't EASYROMS -->
+    <string name="andr36oid_card_held_sd_card">SD card</string>
+    <!-- Toast when the cards held back during the first start are mounted -->
+    <string name="andr36oid_cards_released">Initial setup completed, mounting additional storage</string>
+
+    <java-symbol type="string" name="andr36oid_card_held" />
+    <java-symbol type="string" name="andr36oid_card_held_sd_card" />
+    <java-symbol type="string" name="andr36oid_cards_released" />
+</resources>

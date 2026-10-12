@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="andr36oid_card_held">已检测到 <xliff:g id="name" example="EASYROMS">%1$s</xliff:g>，初始设置完成后将挂载…</string>
+    <string name="andr36oid_card_held_sd_card">SD 卡</string>
+    <string name="andr36oid_cards_released">初始设置已完成，正在挂载附加存储</string>
+</resources>

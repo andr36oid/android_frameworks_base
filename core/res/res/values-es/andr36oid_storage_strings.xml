@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="andr36oid_card_held"><xliff:g id="name" example="EASYROMS">%1$s</xliff:g> detectada, se montará al terminar la configuración inicial…</string>
+    <string name="andr36oid_card_held_sd_card">Tarjeta SD</string>
+    <string name="andr36oid_cards_released">Configuración inicial completada, montando almacenamiento adicional</string>
+</resources>

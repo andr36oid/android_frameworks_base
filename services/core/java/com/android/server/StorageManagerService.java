@@ -139,6 +139,7 @@ import android.util.Pair;
 import android.util.Slog;
 import android.util.TimeUtils;
 import android.util.Xml;
+import android.widget.Toast;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.app.IAppOpsCallback;
@@ -418,6 +419,104 @@ class StorageManagerService extends IStorageManager.Stub
     /** Map from volume ID to disk */
     @GuardedBy("mLock")
     private final ArrayMap<String, VolumeInfo> mVolumes = new ArrayMap<>();
+
+    /*
+     * andr36oid: until the first start's setup is done (gameconsole-emu.sh sets
+     * persist.andr36oid.setup_done once Daijishou is set up), cards other than the boot
+     * card (disk:179,0) are left unmounted, so a big card in the second slot doesn't slow
+     * down or confuse the installs and the EASYROMS steps. Mounted when that property or
+     * sys.andr36oid.cards_free (this start's steps are done, but Daijishou isn't set up
+     * yet: held again next start) is set, or after HOLD_SECOND_CARD_MS.
+     */
+    private static final String PROP_SETUP_DONE = "persist.andr36oid.setup_done";
+    private static final String PROP_CARDS_FREE = "sys.andr36oid.cards_free";
+    private static final String BOOT_CARD_DISK_ID = "disk:179,0";
+    private static final long HOLD_SECOND_CARD_MS = 10 * 60 * 1000;
+    @GuardedBy("mLock")
+    private final ArrayList<VolumeInfo> mHeldVolumes = new ArrayList<>();
+    @GuardedBy("mLock")
+    private boolean mHoldWatching;
+    // set once the held cards were mounted: later cards mount right away
+    @GuardedBy("mLock")
+    private boolean mHoldOver;
+
+    private static final long HOLD_POLL_MS = 5 * 1000;
+    // vold reads a card's label right after it reports the card: wait for it
+    private static final long HOLD_TOAST_DELAY_MS = 1000;
+
+    private static final String EASYROMS_LABEL = "EASYROMS";
+
+    private void holdToast(boolean released) {
+        final String text;
+        synchronized (mLock) {
+            if (released) {
+                text = mContext.getString(com.android.internal.R.string.andr36oid_cards_released);
+            } else {
+                boolean easyroms = false;
+                for (VolumeInfo vol : mHeldVolumes) {
+                    easyroms |= EASYROMS_LABEL.equals(vol.fsLabel);
+                }
+                text = mContext.getString(com.android.internal.R.string.andr36oid_card_held,
+                        easyroms ? EASYROMS_LABEL : mContext.getString(
+                                com.android.internal.R.string.andr36oid_card_held_sd_card));
+            }
+        }
+        UiThread.getHandler().post(
+                () -> Toast.makeText(mContext, text, Toast.LENGTH_LONG).show());
+    }
+    private long mHoldUntil;
+
+    // a plain setprop doesn't call SystemProperties change callbacks, so look every 5 s
+    private final Runnable mHoldPoll = new Runnable() {
+        @Override
+        public void run() {
+            if (SystemProperties.getBoolean(PROP_SETUP_DONE, false)
+                    || SystemProperties.getBoolean(PROP_CARDS_FREE, false)
+                    || SystemClock.uptimeMillis() >= mHoldUntil) {
+                mReleaseHeldVolumes.run();
+            } else {
+                mHandler.postDelayed(this, HOLD_POLL_MS);
+            }
+        }
+    };
+
+    private final Runnable mReleaseHeldVolumes = new Runnable() {
+        @Override
+        public void run() {
+            synchronized (mLock) {
+                if (!mHeldVolumes.isEmpty()) {
+                    holdToast(true);
+                }
+                for (VolumeInfo vol : mHeldVolumes) {
+                    if (mVolumes.get(vol.getId()) == vol
+                            && vol.getState() == VolumeInfo.STATE_UNMOUNTED) {
+                        Slog.i(TAG, "Mounting " + vol.getId() + ", held for the first start");
+                        mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
+                    }
+                }
+                mHeldVolumes.clear();
+                mHoldOver = true;
+            }
+        }
+    };
+
+    @GuardedBy("mLock")
+    private boolean holdForFirstStartLocked(VolumeInfo vol) {
+        if (vol.disk == null || !vol.disk.isSd()
+                || BOOT_CARD_DISK_ID.equals(vol.disk.getId()) || mHoldOver
+                || SystemProperties.getBoolean(PROP_SETUP_DONE, false)) {
+            return false;
+        }
+        Slog.i(TAG, "Holding " + vol.getId() + " until the first start's setup is done");
+        mHeldVolumes.add(vol);
+        if (!mHoldWatching) {
+            mHoldWatching = true;
+            mHoldUntil = SystemClock.uptimeMillis() + HOLD_SECOND_CARD_MS;
+            mHandler.postDelayed(mHoldPoll, HOLD_POLL_MS);
+            mHandler.postDelayed(() -> holdToast(false), HOLD_TOAST_DELAY_MS);
+        }
+        return true;
+    }
 
     /** Map from UUID to record */
     @GuardedBy("mLock")
@@ -1545,7 +1644,9 @@ class StorageManagerService extends IStorageManager.Stub
             }
 
             vol.mountUserId = mCurrentUserId;
-            mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
+            if (!holdForFirstStartLocked(vol)) {
+                mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
+            }
 
         } else if (vol.type == VolumeInfo.TYPE_PRIVATE) {
             mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
