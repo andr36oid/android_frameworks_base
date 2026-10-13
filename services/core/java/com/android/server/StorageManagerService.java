@@ -199,6 +199,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -2353,7 +2354,16 @@ class StorageManagerService extends IStorageManager.Stub
         }
     }
 
+    /**
+     * Mounts running in vold. vold holds its lock for a whole mount, the file system check
+     * included, and a card full of ROMs that wasn't removed cleanly can take minutes to
+     * check. The watchdog's {@link #monitor} call into vold would wait for that lock and
+     * restart Android after 60 s, which then checks the card again from the start.
+     */
+    private final AtomicInteger mMountsRunning = new AtomicInteger();
+
     private void mount(VolumeInfo vol) {
+        mMountsRunning.incrementAndGet();
         try {
             // TODO(b/135341433): Remove paranoid logging when FUSE is stable
             Slog.i(TAG, "Mounting volume " + vol);
@@ -2388,6 +2398,8 @@ class StorageManagerService extends IStorageManager.Stub
             Slog.i(TAG, "Mounted volume " + vol);
         } catch (Exception e) {
             Slog.wtf(TAG, e);
+        } finally {
+            mMountsRunning.decrementAndGet();
         }
     }
 
@@ -4719,6 +4731,8 @@ class StorageManagerService extends IStorageManager.Stub
     /** {@inheritDoc} */
     @Override
     public void monitor() {
+        // vold is busy with a mount (see mMountsRunning), not stuck
+        if (mMountsRunning.get() > 0) return;
         try {
             mVold.monitor();
         } catch (Exception e) {
