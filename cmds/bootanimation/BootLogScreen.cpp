@@ -80,6 +80,11 @@ constexpr SkColor kErrorColor = SkColorSetRGB(0xff, 0x60, 0x60);
 constexpr SkColor kHeaderColor = SkColorSetRGB(0x00, 0x30, 0x30);
 constexpr SkColor kHeaderTextColor = SkColorSetRGB(0x60, 0xe0, 0xd0);
 
+constexpr const char* kResizeProp = "sys.andr36oid.resizing";
+constexpr const char* kResizeText = "Resizing SD card ...";
+constexpr const char* kResizeFontFile = "/system/fonts/Roboto-Regular.ttf";
+constexpr SkColor kResizeColor = SkColorSetRGB(0x8c, 0x8c, 0x8c);
+
 enum class Level { kInfo, kWarn, kError };
 
 struct LogLine {
@@ -439,6 +444,74 @@ bool BootAnimation::logScreen() {
     logcat.stop();
     glDeleteTextures(1, &texture);
     return false;
+}
+
+// andr36oid: "Resizing SD card ..." in grey under the logo while the first start sets up
+// the card. andr36oid-firstresize.sh sets sys.andr36oid.resizing=1 and init clears it at
+// post-fs-data, after Android has formatted userdata. The logo fills the middle third of
+// the animation (gen-bootanimation.sh), the line goes just below it. The strip is opaque
+// black like the background there, so it needs no blending.
+void BootAnimation::drawResizeNotice(int x, int y, int w, int h) {
+    char value[PROPERTY_VALUE_MAX];
+    property_get(kResizeProp, value, "0");
+    if (strcmp(value, "1") != 0 || w <= 0 || h <= 0) return;
+
+    if (mResizeTexture == 0) {
+        sk_sp<SkTypeface> face = SkTypeface::MakeFromFile(kResizeFontFile);
+        if (face == nullptr) face = SkTypeface::MakeDefault();
+        SkFont font(face, std::max(12, h / 24));
+        font.setEdging(SkFont::Edging::kAntiAlias);
+        SkFontMetrics metrics;
+        font.getMetrics(&metrics);
+        const int th = std::max(1, (int)ceilf((metrics.fDescent - metrics.fAscent) * 1.4f));
+
+        SkBitmap bitmap;
+        bitmap.allocPixels(SkImageInfo::Make(w, th, kRGBA_8888_SkColorType, kOpaque_SkAlphaType));
+        SkCanvas canvas(bitmap);
+        canvas.clear(SK_ColorBLACK);
+        SkPaint paint;
+        paint.setAntiAlias(true);
+        paint.setColor(kResizeColor);
+        const SkScalar tw = font.measureText(kResizeText, strlen(kResizeText),
+                SkTextEncoding::kUTF8);
+        canvas.drawString(kResizeText, (w - tw) / 2, (th - metrics.fDescent - metrics.fAscent) / 2,
+                font, paint);
+
+        // The same texture setup as the boot log's
+        bool npot = false;
+        const char* exts = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+        if (exts != nullptr) {
+            npot = strstr(exts, "GL_ARB_texture_non_power_of_two") != nullptr
+                    || strstr(exts, "GL_OES_texture_npot") != nullptr;
+        }
+        int pw = 1 << (31 - __builtin_clz(w));
+        int ph = 1 << (31 - __builtin_clz(th));
+        if (pw < w) pw <<= 1;
+        if (ph < th) ph <<= 1;
+        if (npot) {
+            pw = w;
+            ph = th;
+        }
+        glGenTextures(1, &mResizeTexture);
+        glBindTexture(GL_TEXTURE_2D, mResizeTexture);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, pw, ph, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, th, GL_RGBA, GL_UNSIGNED_BYTE,
+                bitmap.getPixels());
+        GLint crop[4] = { 0, th, w, -th };
+        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_CROP_RECT_OES, crop);
+        mResizeHeight = th;
+        ALOGI("first start: showing \"%s\"", kResizeText);
+    } else {
+        glBindTexture(GL_TEXTURE_2D, mResizeTexture);
+    }
+    const int top = y + h * 2 / 3 + h / 30;
+    glDrawTexiOES(x, mHeight - (top + mResizeHeight), 0, w, mResizeHeight);
+    // the animation uploads parts that play once into texture 0
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 }  // namespace android

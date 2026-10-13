@@ -179,6 +179,8 @@ private:
     // andr36oid: the boot log on screen (BootLogScreen.cpp)
     bool logRequested();
     bool logScreen();
+    // andr36oid: "Resizing SD card ..." under the logo on the first start (BootLogScreen.cpp)
+    void drawResizeNotice(int x, int y, int w, int h);
     void closeLogKeys();
 
     void handleViewport(nsecs_t timestep);
@@ -205,6 +207,8 @@ private:
     bool        mShuttingDown;
     bool        mLogMode = false;
     std::string mLogReason;
+    GLuint      mResizeTexture = 0;
+    int         mResizeHeight = 0;
     bool        mKeysOpened = false;
     std::vector<int> mKeyFds;
     nsecs_t     mLastKeyCheck = 0;
