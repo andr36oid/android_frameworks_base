@@ -52,15 +52,17 @@ import java.util.function.BooleanSupplier;
 
 /**
  * Lets a game controller use the open notification shade without touching the screen. The
- * d-pad moves a clearly drawn focus through quick settings, the brightness slider, the footer
- * buttons and the notifications. Buttons:
+ * shade opens with the full quick settings and the notifications below them (see
+ * NotificationPanelViewController.mQsScrollAway). The d-pad moves a clearly drawn focus
+ * through quick settings, the brightness slider, the footer buttons and on down into the
+ * notifications, which scrolls the quick settings up out of view. Buttons:
  * <ul>
  * <li>A: press, hold for a long press (the key layout sends DPAD_CENTER for it)
- * <li>B: back: closes notification controls, then the full quick settings, then the shade
+ * <li>B: back: closes notification controls, tile details or the tile editor, then the shade
  * <li>X: dismiss the focused notification; on a tile with details (Wi-Fi, Bluetooth, ...)
  * open the details
  * <li>Y: long press: a tile's settings page, a notification's controls
- * <li>R1 / L1: open the full quick settings / go back to the quick row
+ * <li>R1 / L1: jump to the notifications / back up to the first tile
  * <li>Right / Left on a notification: expand / collapse it
  * </ul>
  *
@@ -184,7 +186,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
      * and right, text fields move the cursor, the tile editor's list moves by itself. The rest
      * (scroll views, the tile pager) would move the focus with the stock focus search.
      */
-    private static boolean viewTakesKey(View focused, int keyCode) {
+    private boolean viewTakesKey(View focused, int keyCode) {
         if (focused == null) {
             return false;
         }
@@ -194,9 +196,15 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         if (focused instanceof AbsSeekBar) {
             return keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
         }
+        boolean inList = false;
         for (ViewParent parent = focused.getParent(); parent instanceof View;
                 parent = parent.getParent()) {
             if (parent instanceof RecyclerView) {
+                inList = true;
+            }
+            // Only the tile editor's list moves by itself; elsewhere a list would keep the
+            // keys and get nowhere
+            if (inList && ((View) parent).getId() == R.id.qs_customize) {
                 return true;
             }
         }
@@ -336,6 +344,13 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                 // Tile details or the tile editor opened over the focused tile
                 mFocusLost = true;
             }
+            if (focused != null && focused != mRoot && !isUsefulFocusable(focused)) {
+                // A whole container got the focus (the quick settings panel, the scrollable
+                // notification list): it would be outlined over most of the screen and keys
+                // would do nothing there
+                focused.setDefaultFocusHighlightEnabled(false);
+                mFocusLost = true;
+            }
             if ((mFocusFirst || mFocusLost) && mPendingFocus == null) {
                 focusFirst();
             }
@@ -356,8 +371,8 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         final View focused = active ? mRoot.findFocus() : null;
         boolean show = false;
         float left = 0, top = 0, right = 0, bottom = 0;
-        if (focused != null && focused != mRoot && focused.isShown()
-                && focused.getGlobalVisibleRect(new Rect())) {
+        if (focused != null && focused != mRoot && isUsefulFocusable(focused)
+                && focused.isShown() && focused.getGlobalVisibleRect(new Rect())) {
             final Rect rect = rectOf(focused);
             mRoot.getLocationInWindow(mTmpLocation);
             final float inset = mStrokeWidth / 2;
@@ -378,12 +393,22 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
     private void onButton(int keyCode) {
         final View focused = mRoot.findFocus();
         switch (keyCode) {
-            case KeyEvent.KEYCODE_BUTTON_R1:
+            case KeyEvent.KEYCODE_BUTTON_R1: {
+                // Down to the notifications
+                final ArrayList<Target> notifications = getNotificationTargets();
+                if (!notifications.isEmpty()) {
+                    focusTarget(notifications.get(0));
+                } else {
+                    mPanel.flingQsFromKey(true, this::focusFirstLater);
+                }
+                return;
+            }
             case KeyEvent.KEYCODE_BUTTON_L1:
-                mPanel.flingQsFromKey(keyCode == KeyEvent.KEYCODE_BUTTON_R1, () -> {
-                    mFocusFirst = true;
-                    mRoot.invalidate();
-                });
+                // Back up to the first tile
+                if (!mPanel.flingQsFromKey(true, this::focusFirstLater)) {
+                    mPanel.animateQsScrollAway(0);
+                    focusFirst();
+                }
                 return;
         }
         if (mFocusFirst || focused == null || !isTarget(focused)) {
@@ -409,6 +434,11 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                 focused.performLongClick();
             }
         }
+    }
+
+    private void focusFirstLater() {
+        mFocusFirst = true;
+        mRoot.invalidate();
     }
 
     /** Tiles like Wi-Fi and Bluetooth have a second button in their label for the details. */
@@ -479,6 +509,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             return;
         }
         if (!panelTargets.contains(focused)) {
+            // Also when a container had the focus: start on the first tile
             focusFirst(panelTargets, notifications);
             return;
         }
@@ -489,8 +520,9 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         final Rect from = rectOf(focused);
         final View next = findNext(from, panelTargets, focused, direction);
         if (direction == View.FOCUS_DOWN) {
-            // Below quick settings come the notifications
-            final Target first = firstOnScreen(notifications);
+            // Below quick settings come the notifications, maybe below the screen: the quick
+            // settings scroll up to show them
+            final Target first = notifications.isEmpty() ? null : notifications.get(0);
             if (first != null && (next == null
                     || rectOf(first.view).top < rectOf(next).top)) {
                 focusTarget(first);
@@ -498,8 +530,22 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             }
         }
         if (next != null) {
-            requestFocus(next);
+            focusPanelTarget(next);
         }
+    }
+
+    /** Focuses something outside the list, scrolling the quick settings back to show it. */
+    private void focusPanelTarget(View view) {
+        final float away = mPanel.getQsScrollAway();
+        if (away > 0) {
+            final Rect rect = rectOf(view);
+            mRoot.getLocationInWindow(mTmpLocation);
+            final int top = mTmpLocation[1] + Math.round(mCornerRadius);
+            if (rect.top < top) {
+                mPanel.animateQsScrollAway(away - (top - rect.top));
+            }
+        }
+        requestFocus(view);
     }
 
     private void moveInNotifications(ArrayList<Target> targets, int index, int direction,
@@ -513,10 +559,10 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                 next += step;
             }
             if (next < 0) {
-                // Above the first notification are the quick settings
+                // Above the first notification are the quick settings, maybe scrolled away
                 final View up = findNext(from, panelTargets, null, View.FOCUS_UP);
                 if (up != null) {
-                    requestFocus(up);
+                    focusPanelTarget(up);
                 }
                 return;
             }
@@ -654,6 +700,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
     /** Everything outside the notification list: header, tiles, slider, footer buttons. */
     private ArrayList<View> getPanelTargets() {
         final View scope = getPanelScope();
+        final boolean scrolledAway = scope == mRoot && mPanel.getQsScrollAway() > 0;
         final ArrayList<View> focusables = new ArrayList<>();
         scope.addFocusables(focusables, View.FOCUS_DOWN, View.FOCUSABLES_ALL);
         final ArrayList<View> targets = new ArrayList<>();
@@ -661,7 +708,10 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             if (mStack != null && isInside(view, mStack)) {
                 continue;
             }
-            if (isUsefulFocusable(view) && isOnScreen(view)) {
+            // While the quick settings are scrolled up, their hidden part still counts: moving
+            // up scrolls it back
+            if (isUsefulFocusable(view)
+                    && (isOnScreen(view) || (scrolledAway && isVisible(view)))) {
                 targets.add(view);
             }
         }
@@ -687,8 +737,8 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
     /** Notifications, their buttons and the other list items, in list order. */
     private ArrayList<Target> getNotificationTargets() {
         final ArrayList<Target> targets = new ArrayList<>();
-        // With the full quick settings open, the list is pushed out of the way
-        if (mStack == null || !mStack.isShown() || mPanel.isQsExpanded()) {
+        // Not while the tile editor or tile details cover everything
+        if (mStack == null || !mStack.isShown() || getPanelScope() != mRoot) {
             return targets;
         }
         for (int i = 0; i < mStack.getChildCount(); i++) {

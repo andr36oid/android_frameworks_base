@@ -291,6 +291,29 @@ public class NotificationPanelViewController extends PanelViewController {
     private boolean mQsExpanded;
     private boolean mQsExpandedWhenExpandingStarted;
     private boolean mQsFullyExpanded;
+    // andr36oid: how far the full quick settings are scrolled up to show the notifications
+    // below them (NotificationStackScrollLayout.QsScrollAway), for game controllers
+    private float mQsScrollAway;
+    private ValueAnimator mQsScrollAwayAnimator;
+    private final NotificationStackScrollLayout.QsScrollAway mQsScrollAwayHost =
+            new NotificationStackScrollLayout.QsScrollAway() {
+                @Override
+                public float getQsScrollAway() {
+                    // where it is going while it moves, so steps add up
+                    return mQsScrollAwayAnimator != null ? mQsScrollAwayTarget : mQsScrollAway;
+                }
+
+                @Override
+                public float getMaxQsScrollAway() {
+                    return getMaxQsScrollAwayAmount();
+                }
+
+                @Override
+                public void scrollQsAwayTo(float amount) {
+                    animateQsScrollAway(amount);
+                }
+            };
+    private float mQsScrollAwayTarget;
     private boolean mKeyguardShowing;
     private boolean mDozing;
     private boolean mDozingOnDown;
@@ -614,6 +637,7 @@ public class NotificationPanelViewController extends PanelViewController {
         mNotificationContainerParent = mView.findViewById(R.id.notification_container_parent);
         mNotificationStackScroller = mView.findViewById(R.id.notification_stack_scroller);
         mNotificationStackScroller.setOnHeightChangedListener(mOnHeightChangedListener);
+        mNotificationStackScroller.setNotificationsUnderQs(true, mQsScrollAwayHost);
         mNotificationStackScroller.setOverscrollTopChangedListener(mOnOverscrollTopChangedListener);
         mNotificationStackScroller.setOnEmptySpaceClickListener(mOnEmptySpaceClickListener);
         addTrackingHeadsUpListener(mNotificationStackScroller::setTrackingHeadsUp);
@@ -1048,6 +1072,68 @@ public class NotificationPanelViewController extends PanelViewController {
      * Opens the full quick settings or closes them back to the quick row while the shade is
      * open, for game controller buttons. Returns false if there is nothing to do.
      */
+    /** Only the fully open quick settings scroll away, at most all of them. */
+    private float getMaxQsScrollAwayAmount() {
+        return mQsFullyExpanded && !mKeyguardShowing ? mQsMaxExpansionHeight : 0;
+    }
+
+    /** The part of the full quick settings scrolled away, see mQsScrollAway. */
+    public float getQsScrollAway() {
+        return mQsScrollAwayHost.getQsScrollAway();
+    }
+
+    /** Scrolls the full quick settings up by this much (0: all in view), animated. */
+    public void animateQsScrollAway(float amount) {
+        amount = Math.max(0, Math.min(amount, getMaxQsScrollAwayAmount()));
+        if (mQsScrollAwayAnimator != null) {
+            mQsScrollAwayAnimator.cancel();
+        }
+        if (amount == mQsScrollAway) {
+            return;
+        }
+        mQsScrollAwayTarget = amount;
+        final ValueAnimator animator = ValueAnimator.ofFloat(mQsScrollAway, amount);
+        animator.setDuration(200);
+        animator.setInterpolator(Interpolators.FAST_OUT_SLOW_IN);
+        animator.addUpdateListener(a -> setQsScrollAway((float) a.getAnimatedValue()));
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (mQsScrollAwayAnimator == animation) {
+                    mQsScrollAwayAnimator = null;
+                }
+            }
+        });
+        mQsScrollAwayAnimator = animator;
+        animator.start();
+    }
+
+    private void setQsScrollAway(float amount) {
+        if (amount == mQsScrollAway) {
+            return;
+        }
+        mQsScrollAway = amount;
+        updateQsExpansion();
+        requestScrollerTopPaddingUpdate(false /* animate */);
+    }
+
+    private void resetQsScrollAway() {
+        if (mQsScrollAwayAnimator != null) {
+            mQsScrollAwayAnimator.cancel();
+            mQsScrollAwayAnimator = null;
+        }
+        setQsScrollAway(0);
+    }
+
+    /** Leaves the tile editor if it is open; returns false if it wasn't. */
+    public boolean closeQsCustomizer() {
+        if (mQs instanceof QSFragment && mQs.isCustomizing()) {
+            ((QSFragment) mQs).closeCustomizer();
+            return true;
+        }
+        return false;
+    }
+
     public boolean flingQsFromKey(boolean expand, Runnable onFinishRunnable) {
         if (isFullyCollapsed() || mQsExpansionAnimator != null || (expand && !mQsExpansionEnabled)
                 || expand == mQsExpanded) {
@@ -1740,6 +1826,9 @@ public class NotificationPanelViewController extends PanelViewController {
             setQsExpanded(false);
         }
         mQsExpansionHeight = height;
+        if (!mQsFullyExpanded && mQsScrollAway != 0) {
+            resetQsScrollAway();
+        }
         updateQsExpansion();
         requestScrollerTopPaddingUpdate(false /* animate */);
         updateHeaderKeyguardAlpha();
@@ -1818,7 +1907,7 @@ public class NotificationPanelViewController extends PanelViewController {
                     (float) (mQsMaxExpansionHeight + mQsNotificationTopPadding),
                     getQsExpansionFraction());
         } else {
-            return mQsExpansionHeight + mQsNotificationTopPadding;
+            return mQsExpansionHeight + mQsNotificationTopPadding - mQsScrollAway;
         }
     }
 
@@ -2230,7 +2319,7 @@ public class NotificationPanelViewController extends PanelViewController {
         }
         float translation = MathUtils.lerp(startHeight, 0, Math.min(1.0f, appearAmount))
                 + mExpandOffset;
-        return Math.min(0, translation);
+        return Math.min(0, translation) - mQsScrollAway;
     }
 
     /**
@@ -2312,6 +2401,12 @@ public class NotificationPanelViewController extends PanelViewController {
 
     @Override
     protected void onExpandingStarted() {
+        // andr36oid: the shade always opens with the full quick settings, the notifications
+        // below them (made for game controllers, see ShadeKeyNavigation)
+        if (isFullyCollapsed() && mBarState == StatusBarState.SHADE && mQsExpansionEnabled
+                && !mKeyguardShowing) {
+            mQsExpandImmediate = true;
+        }
         super.onExpandingStarted();
         mNotificationStackScroller.onExpansionStarted();
         mIsExpanding = true;

@@ -477,6 +477,19 @@ public class NotificationStackScrollLayout extends ViewGroup implements ScrollAd
 
     private boolean mUsingLightTheme;
     private boolean mQsExpanded;
+    // andr36oid: the notifications stay laid out under the full quick settings in the shade
+    // instead of going into the shelf, and the quick settings scroll away to show them
+    private boolean mNotificationsUnderQs;
+    private QsScrollAway mQsScrollAway;
+
+    /** The part of the full quick settings scrolled out of view above the notifications. */
+    public interface QsScrollAway {
+        float getQsScrollAway();
+
+        float getMaxQsScrollAway();
+
+        void scrollQsAwayTo(float amount);
+    }
     private boolean mForwardScrollable;
     private boolean mBackwardScrollable;
     private NotificationShelf mShelf;
@@ -1429,7 +1442,7 @@ public class NotificationStackScrollLayout extends ViewGroup implements ScrollAd
             translationY = 0;
             if (mShouldShowShelfOnly) {
                 stackHeight = mTopPadding + mShelf.getIntrinsicHeight();
-            } else if (mQsExpanded) {
+            } else if (mQsExpanded && !mNotificationsUnderQs) {
                 int stackStartPosition = mContentHeight - mTopPadding + mIntrinsicPadding;
                 int stackEndPosition = mMaxTopPadding + mShelf.getIntrinsicHeight();
                 if (stackStartPosition <= stackEndPosition) {
@@ -1799,6 +1812,18 @@ public class NotificationStackScrollLayout extends ViewGroup implements ScrollAd
         int position = getPositionInLinearLayout(child);
         int shelfHeight = mShelf != null ? mShelf.getIntrinsicHeight() : 0;
         int visibleHeight = Math.max(0, mAmbientState.getInnerHeight() - shelfHeight);
+        if (mNotificationsUnderQs && mQsExpanded && mQsScrollAway != null) {
+            // First scroll the quick settings out of the way, then the list itself
+            final float away = mQsScrollAway.getQsScrollAway();
+            final float maxAway = mQsScrollAway.getMaxQsScrollAway();
+            final int below = position + bottom - mOwnScrollY - visibleHeight;
+            if (below > 0 && away < maxAway) {
+                final float more = Math.min(below, maxAway - away);
+                mQsScrollAway.scrollQsAwayTo(away + more);
+                // the list area grows by what the quick settings gave up
+                visibleHeight += (int) more;
+            }
+        }
         int targetScroll = mOwnScrollY;
         if (position + bottom > targetScroll + visibleHeight) {
             targetScroll = position + bottom - visibleHeight;
@@ -5425,6 +5450,13 @@ public class NotificationStackScrollLayout extends ViewGroup implements ScrollAd
     }
 
     @ShadeViewRefactor(RefactorComponent.SHADE_VIEW)
+    /** andr36oid: see mNotificationsUnderQs. */
+    public void setNotificationsUnderQs(boolean underQs, QsScrollAway scrollAway) {
+        mNotificationsUnderQs = underQs;
+        mQsScrollAway = scrollAway;
+        requestChildrenUpdate();
+    }
+
     public void setQsExpanded(boolean qsExpanded) {
         mQsExpanded = qsExpanded;
         updateAlgorithmLayoutMinHeight();

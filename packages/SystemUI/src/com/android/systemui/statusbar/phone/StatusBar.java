@@ -3748,6 +3748,12 @@ public class StatusBar extends SystemUI implements DemoMode,
         if (mNotificationPanelViewController.isQsExpanded()) {
             if (mNotificationPanelViewController.isQsDetailShowing()) {
                 mNotificationPanelViewController.closeQsDetail();
+            } else if (mNotificationPanelViewController.closeQsCustomizer()) {
+                // andr36oid: back from the tile editor to the quick settings
+            } else if (mState == StatusBarState.SHADE
+                    && mNotificationPanelViewController.canPanelBeCollapsed()) {
+                // andr36oid: the full quick settings are the shade, back closes it
+                mShadeController.animateCollapsePanels();
             } else {
                 mNotificationPanelViewController.animateCloseQs(false /* animateAway */);
             }
