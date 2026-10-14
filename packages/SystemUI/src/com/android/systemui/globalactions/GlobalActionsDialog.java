@@ -1834,6 +1834,12 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
                     continue;
                 }
                 final String packageName = component.getPackageName();
+                // andr36oid: the play time is up page can't be closed, the system refuses it
+                if ("org.andr36oid.playtime".equals(packageName)
+                        && Settings.Global.getInt(mContext.getContentResolver(),
+                                "andr36oid_parental_controls", 0) != 0) {
+                    return null;
+                }
                 final PackageManager pm =
                         mCurrentUserContextTracker.getCurrentUserContext().getPackageManager();
                 CharSequence label;

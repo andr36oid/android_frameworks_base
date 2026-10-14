@@ -4546,6 +4546,15 @@ public class ActivityManagerService extends IActivityManager.Stub
                                 + packageName + " u" + user);
                         return;
                     }
+                    // andr36oid: Play time counts and enforces the parental controls; only
+                    // their PIN turns them off, not a force stop from the power menu or Settings
+                    if ("org.andr36oid.playtime".equals(packageName)
+                            && Settings.Global.getInt(mContext.getContentResolver(),
+                                    "andr36oid_parental_controls", 0) != 0) {
+                        Slog.w(TAG, "Ignoring request to force stop " + packageName
+                                + " while parental controls are on");
+                        return;
+                    }
 
                     int pkgUid = -1;
                     try {
