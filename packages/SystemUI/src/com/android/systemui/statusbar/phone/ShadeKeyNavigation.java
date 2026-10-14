@@ -921,8 +921,17 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         return rect;
     }
 
-    /** Leaves out containers that are only focusable for accessibility, like the tile grid. */
-    private static boolean isUsefulFocusable(View view) {
+    /**
+     * Leaves out containers that are only focusable for accessibility, like the tile grid, and
+     * anything as big as most of the shade (the panel, the notification list): outlined it
+     * covers the screen, and no other target lies outside it to move to.
+     */
+    private boolean isUsefulFocusable(View view) {
+        // Notifications can be that big when expanded, they stay
+        if (!(view instanceof ExpandableView) && view.getWidth() * (long) view.getHeight()
+                > mRoot.getWidth() * (long) mRoot.getHeight() / 2) {
+            return false;
+        }
         return !(view instanceof ViewGroup) || view.isClickable() || view.isLongClickable();
     }
 
