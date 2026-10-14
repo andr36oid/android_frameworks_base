@@ -171,6 +171,7 @@ import android.service.dreams.IDreamManager;
 import android.service.vr.IPersistentVrStateCallbacks;
 import android.speech.RecognizerIntent;
 import android.telecom.TelecomManager;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.LongSparseArray;
 import android.util.MutableBoolean;
@@ -247,6 +248,9 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Constructor;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -666,6 +670,20 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int FN_HELP_DELAY_DEFAULT_MS = 700;
     // Screenshot shortcut while the list shows: wait until it is off the screen
     private static final long FN_HELP_SCREENSHOT_DELAY_MS = 150;
+    // Consoles without FN (written by QuickStart and Settings > Controls): "scan:<code>" makes
+    // that built-in button FN, "vol_both" opens FN mode with Vol+ and Vol- pressed together.
+    // Unset is the real FN, or "vol_both" when FN is in the console's missing buttons.
+    private static final String FN_STANDIN_SETTING = "andr36oid_fn_standin";
+    private static final String FN_STANDIN_VOL_BOTH = "vol_both";
+    private static final String FN_STANDIN_SCAN_PREFIX = "scan:";
+    private static final String MISSING_BUTTONS_SETTING = "andr36oid_missing_buttons";
+    // Known boards name their missing buttons in the device tree, used while the setting is unset
+    private static final String MISSING_BUTTONS_DT_HINT =
+            "/proc/device-tree/odroidgo3-joypad/andr36oid,missing-buttons";
+    // The second volume button this soon after the first makes the chord, not a volume step
+    private static final long FN_CHORD_DELAY_MS = 150;
+    // FN mode closes by itself when no button follows
+    private static final long FN_MODE_TIMEOUT_MS = 4000;
     private static final String JOYMOUSE_ACTIVE_PROPERTY = "sys.joymouse.active";
     // SystemUI opens the power menu right on its App switcher page (GlobalActionsComponent)
     private static final String APP_SWITCHER_PACKAGE = "com.android.systemui";
@@ -716,6 +734,24 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private FnShortcutHelp mFnHelp;
     private final Runnable mShowFnHelpRunnable = this::showFnHelp;
     private final Runnable mHideFnHelpRunnable = this::hideFnHelp;
+    // Scan code of the built-in button that stands in for FN, 0 for none. From the settings
+    // observer, so key events never read settings.
+    private volatile int mFnStandinScanCode;
+    // Vol+ and Vol- together open FN mode
+    private volatile boolean mFnChordEnabled;
+    // The stand-in was the last FN pressed, and what it sends, for the list's hint
+    private volatile boolean mFnStandinHeld;
+    private volatile int mFnStandinKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+    // Down times of the built-in volume buttons held right now, 0 when up. Input reader thread.
+    private volatile long mFnChordVolumeUpTime;
+    private volatile long mFnChordVolumeDownTime;
+    // The volume buttons that made the chord: the rest of their press is swallowed
+    private volatile boolean mFnChordVolumeUpConsumed;
+    private volatile boolean mFnChordVolumeDownConsumed;
+    // FN mode: the list shows and the next button runs its FN shortcut
+    private volatile boolean mFnModeActive;
+    private final Runnable mOpenFnModeRunnable = this::openFnMode;
+    private final Runnable mCloseFnModeRunnable = this::closeFnMode;
 
     SettingsObserver mSettingsObserver;
     ShortcutManager mShortcutManager;
@@ -3066,8 +3102,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // TODO(b/117479243): handle it in InputPolicy
     /** {@inheritDoc} */
     @Override
-    public long interceptKeyBeforeDispatching(IBinder focusedToken, KeyEvent event,
+    public long interceptKeyBeforeDispatching(IBinder focusedToken, KeyEvent keyEvent,
             int policyFlags) {
+        // The button standing in for FN is FN from here on
+        final KeyEvent event = isFnStandinKey(keyEvent) ? asFnKey(keyEvent) : keyEvent;
         final boolean keyguardOn = keyguardOn();
         final int keyCode = event.getKeyCode();
         final int repeatCount = event.getRepeatCount();
@@ -3082,6 +3120,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (DEBUG_INPUT) {
             Log.d(TAG, "interceptKeyTi keyCode=" + keyCode + " down=" + down + " repeatCount="
                     + repeatCount + " keyguardOn=" + keyguardOn + " canceled=" + canceled);
+        }
+
+        final long fnChordResult = interceptFnChordBeforeDispatching(event);
+        if (fnChordResult != 0) {
+            return fnChordResult;
         }
 
         // If we think we might have a volume down & power key chord on the way
@@ -3957,6 +4000,175 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         return event.getScanCode() == FN_SCAN_CODE;
     }
 
+    /** The built-in button chosen to stand in for FN, while the FN shortcuts are on. */
+    private boolean isFnStandinKey(KeyEvent event) {
+        final int scanCode = mFnStandinScanCode;
+        if (scanCode == 0 || event.getScanCode() != scanCode
+                || (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0
+                || !SystemProperties.getBoolean(FN_HOTKEYS_PROPERTY, true)) {
+            return false;
+        }
+        return isBuiltInKey(event);
+    }
+
+    private static boolean isBuiltInKey(KeyEvent event) {
+        final InputDevice device = event.getDevice();
+        return device != null && !device.isVirtual() && !device.isExternal();
+    }
+
+    /** The same press as if the real FN sent it, so everything FN does applies. */
+    private static KeyEvent asFnKey(KeyEvent event) {
+        return KeyEvent.obtain(event.getDownTime(), event.getEventTime(), event.getAction(),
+                KeyEvent.KEYCODE_HOME, event.getRepeatCount(), event.getMetaState(),
+                event.getDeviceId(), FN_SCAN_CODE, event.getFlags(), event.getSource(),
+                event.getDisplayId(), null /* characters */);
+    }
+
+    private void observeFnStandin() {
+        final ContentObserver observer = new ContentObserver(mHandler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                updateFnStandin();
+            }
+        };
+        final ContentResolver resolver = mContext.getContentResolver();
+        resolver.registerContentObserver(Settings.Global.getUriFor(FN_STANDIN_SETTING), false,
+                observer, UserHandle.USER_ALL);
+        resolver.registerContentObserver(Settings.Global.getUriFor(MISSING_BUTTONS_SETTING),
+                false, observer, UserHandle.USER_ALL);
+        updateFnStandin();
+    }
+
+    private void updateFnStandin() {
+        final ContentResolver resolver = mContext.getContentResolver();
+        String standin = Settings.Global.getString(resolver, FN_STANDIN_SETTING);
+        if (TextUtils.isEmpty(standin) && isFnMissing(resolver)) {
+            standin = FN_STANDIN_VOL_BOTH;
+        }
+        int scanCode = 0;
+        if (standin != null && standin.startsWith(FN_STANDIN_SCAN_PREFIX)) {
+            try {
+                scanCode = Integer.parseInt(
+                        standin.substring(FN_STANDIN_SCAN_PREFIX.length()).trim());
+            } catch (NumberFormatException e) {
+                Slog.w(TAG, "Ignoring " + FN_STANDIN_SETTING + "=" + standin);
+            }
+        }
+        // The real FN needs no stand-in
+        mFnStandinScanCode = scanCode > 0 && scanCode != FN_SCAN_CODE ? scanCode : 0;
+        mFnChordEnabled = FN_STANDIN_VOL_BOTH.equals(standin);
+    }
+
+    /** FN is among the console's missing buttons: the setting once checked, else the DT hint. */
+    private static boolean isFnMissing(ContentResolver resolver) {
+        String missing = Settings.Global.getString(resolver, MISSING_BUTTONS_SETTING);
+        if (missing == null) {
+            try {
+                // A string list, the entries end in NUL
+                missing = new String(Files.readAllBytes(Paths.get(MISSING_BUTTONS_DT_HINT)),
+                        StandardCharsets.UTF_8).replace('\0', ',');
+            } catch (IOException | RuntimeException e) {
+                // No hint for this board
+                return false;
+            }
+        }
+        for (String name : missing.split(",")) {
+            if (name.trim().equalsIgnoreCase("fn")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Vol+ and Vol- pressed together open FN mode, on consoles without FN. Input reader thread,
+     * which sees every press. The first button's volume step waits in
+     * interceptFnChordBeforeDispatching until it is clear whether the second one follows.
+     * Holding both for long still resets the button remap: InputManagerService watches for
+     * that before any of this.
+     */
+    private void interceptFnChordBeforeQueueing(KeyEvent event, boolean interactive) {
+        final int keyCode = event.getKeyCode();
+        if ((keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN)
+                || (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0 || !isBuiltInKey(event)) {
+            return;
+        }
+        final boolean volumeUp = keyCode == KeyEvent.KEYCODE_VOLUME_UP;
+        final long downTime = event.getAction() == KeyEvent.ACTION_DOWN ? event.getDownTime() : 0;
+        if (volumeUp) {
+            mFnChordVolumeUpTime = downTime;
+        } else {
+            mFnChordVolumeDownTime = downTime;
+        }
+        if (downTime == 0 || !mFnChordEnabled || !interactive || mFnModeActive
+                || (volumeUp ? mFnChordVolumeDownTime : mFnChordVolumeUpTime) == 0
+                || !SystemProperties.getBoolean(FN_HOTKEYS_PROPERTY, true)) {
+            return;
+        }
+        // Both held: neither changes the volume, the rest of both presses is swallowed
+        mFnChordVolumeUpConsumed = true;
+        mFnChordVolumeDownConsumed = true;
+        mFnModeActive = true;
+        mHandler.post(mOpenFnModeRunnable);
+    }
+
+    /**
+     * Holds back a volume button's step while the other one may still make the chord, like
+     * the screenshot chord does, and swallows the chord's buttons. Returns what
+     * interceptKeyBeforeDispatching returns, 0 to carry on.
+     */
+    private long interceptFnChordBeforeDispatching(KeyEvent event) {
+        final int keyCode = event.getKeyCode();
+        if ((keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN)
+                || (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0) {
+            return 0;
+        }
+        final boolean volumeUp = keyCode == KeyEvent.KEYCODE_VOLUME_UP;
+        final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+        if ((volumeUp ? mFnChordVolumeUpConsumed : mFnChordVolumeDownConsumed)
+                && isBuiltInKey(event)) {
+            if (!down) {
+                if (volumeUp) {
+                    mFnChordVolumeUpConsumed = false;
+                } else {
+                    mFnChordVolumeDownConsumed = false;
+                }
+            }
+            return -1;
+        }
+        if (!mFnChordEnabled || mFnModeActive || !down || event.getRepeatCount() != 0) {
+            return 0;
+        }
+        // Only while this very press is still held: let go alone, it steps the volume now
+        if ((volumeUp ? mFnChordVolumeUpTime : mFnChordVolumeDownTime) != event.getDownTime()
+                || !SystemProperties.getBoolean(FN_HOTKEYS_PROPERTY, true)) {
+            return 0;
+        }
+        final long timeoutTime = event.getDownTime() + FN_CHORD_DELAY_MS;
+        final long now = SystemClock.uptimeMillis();
+        return now < timeoutTime ? timeoutTime - now : 0;
+    }
+
+    private void openFnMode() {
+        mHandler.removeCallbacks(mCloseFnModeRunnable);
+        if (!mFnModeActive) {
+            return;
+        }
+        if (keyguardOn() || !mPowerManager.isInteractive()) {
+            mFnModeActive = false;
+            return;
+        }
+        showFnHelpRows(getFnHelpRows(true),
+                mContext.getString(R.string.fn_help_footer_vol_both));
+        mHandler.postDelayed(mCloseFnModeRunnable, FN_MODE_TIMEOUT_MS);
+    }
+
+    private void closeFnMode() {
+        mHandler.removeCallbacks(mCloseFnModeRunnable);
+        mFnModeActive = false;
+        hideFnHelp();
+    }
+
     private static int getFnShortcut(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_VOLUME_UP:
@@ -4037,12 +4249,35 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
 
         final int shortcut = getFnShortcut(keyCode);
+        boolean fnMode = false;
+        if (repeatCount == 0 && mFnModeActive
+                && (event.getFlags() & KeyEvent.FLAG_FALLBACK) == 0) {
+            // FN mode: the volume buttons step the brightness and keep it open, any other
+            // button ends it and runs its shortcut. Back and B only close it.
+            fnMode = true;
+            if (keyCode != KeyEvent.KEYCODE_VOLUME_UP
+                    && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) {
+                mFnModeActive = false;
+                if (keyCode == KeyEvent.KEYCODE_HOME) {
+                    // Home still goes home
+                    mHandler.post(mCloseFnModeRunnable);
+                    return false;
+                }
+                if (shortcut == FN_HOTKEY_NONE || keyCode == KeyEvent.KEYCODE_BUTTON_B
+                        || keyguardOn) {
+                    mHandler.post(mCloseFnModeRunnable);
+                    mFnShortcutKeys.put(keyCode, true);
+                    return true;
+                }
+            }
+        }
         if (shortcut == FN_HOTKEY_NONE || keyguardOn
                 || (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0) {
             return false;
         }
         if (repeatCount == 0) {
-            if (!mFnDown || !SystemProperties.getBoolean(FN_HOTKEYS_PROPERTY, true)) {
+            if ((!mFnDown && !fnMode)
+                    || !SystemProperties.getBoolean(FN_HOTKEYS_PROPERTY, true)) {
                 return false;
             }
         } else if (!mFnShortcutKeys.get(keyCode)) {
@@ -4063,6 +4298,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     private void runFnShortcut(int shortcut) {
+        if (mFnModeActive && (shortcut == FN_HOTKEY_BRIGHTNESS_UP
+                || shortcut == FN_HOTKEY_BRIGHTNESS_DOWN)) {
+            // FN mode stays open for more steps
+            mHandler.removeCallbacks(mCloseFnModeRunnable);
+            mHandler.postDelayed(mCloseFnModeRunnable, FN_MODE_TIMEOUT_MS);
+            stepBrightnessFromFn(shortcut == FN_HOTKEY_BRIGHTNESS_UP ? 1 : -1);
+            return;
+        }
+        mHandler.removeCallbacks(mCloseFnModeRunnable);
         // The list made its point once a shortcut is used, and must not end up in a screenshot
         final boolean helpWasShowing = hideFnHelp();
         switch (shortcut) {
@@ -4231,7 +4475,19 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (!mFnDown || mFnShortcutUsed || keyguardOn() || !mPowerManager.isInteractive()) {
             return;
         }
-        final List<FnShortcutHelp.Row> rows = getFnHelpRows();
+        final List<FnShortcutHelp.Row> rows = getFnHelpRows(false);
+        if (rows.isEmpty()) {
+            return;
+        }
+        // FN was held to look, so letting go must not go home
+        mFnShortcutUsed = true;
+        // A stand-in says which button it is, as nothing on the console reads FN
+        showFnHelpRows(rows, mFnStandinHeld
+                ? mContext.getString(R.string.fn_help_footer_standin, getFnStandinLabel())
+                : mContext.getString(R.string.fn_help_footer));
+    }
+
+    private void showFnHelpRows(List<FnShortcutHelp.Row> rows, String footer) {
         if (rows.isEmpty()) {
             return;
         }
@@ -4239,9 +4495,54 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mFnHelp = new FnShortcutHelp(
                     ActivityThread.currentActivityThread().getSystemUiContext());
         }
-        // FN was held to look, so letting go must not go home
-        mFnShortcutUsed = true;
-        mFnHelp.show(rows, mContext.getString(R.string.fn_help_footer));
+        mFnHelp.show(rows, footer);
+    }
+
+    /** How the list names the button that stands in for FN. */
+    private String getFnStandinLabel() {
+        final int keyCode = mFnStandinKeyCode;
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BUTTON_A:
+                return "A";
+            case KeyEvent.KEYCODE_BUTTON_B:
+                return "B";
+            case KeyEvent.KEYCODE_BUTTON_X:
+                return "X";
+            case KeyEvent.KEYCODE_BUTTON_Y:
+                return "Y";
+            case KeyEvent.KEYCODE_BUTTON_L1:
+                return "L1";
+            case KeyEvent.KEYCODE_BUTTON_R1:
+                return "R1";
+            case KeyEvent.KEYCODE_BUTTON_L2:
+                return "L2";
+            case KeyEvent.KEYCODE_BUTTON_R2:
+                return "R2";
+            case KeyEvent.KEYCODE_BUTTON_THUMBL:
+                return "L3";
+            case KeyEvent.KEYCODE_BUTTON_THUMBR:
+                return "R3";
+            case KeyEvent.KEYCODE_BUTTON_START:
+                return "Start";
+            case KeyEvent.KEYCODE_BUTTON_SELECT:
+                return "Select";
+            case KeyEvent.KEYCODE_VOLUME_UP:
+                return "Vol+";
+            case KeyEvent.KEYCODE_VOLUME_DOWN:
+                return "Vol\u2212";
+        }
+        if (keyCode >= KeyEvent.KEYCODE_BUTTON_1 && keyCode <= KeyEvent.KEYCODE_BUTTON_16) {
+            return mContext.getString(R.string.fn_help_extra_button,
+                    keyCode - KeyEvent.KEYCODE_BUTTON_1 + 1);
+        }
+        // Whatever Button mapping made it send, by its key name
+        String name = KeyEvent.keyCodeToString(keyCode);
+        if (name.startsWith("KEYCODE_BUTTON_")) {
+            name = name.substring("KEYCODE_BUTTON_".length());
+        } else if (name.startsWith("KEYCODE_")) {
+            name = name.substring("KEYCODE_".length());
+        }
+        return name;
     }
 
     /** Returns true if the list was showing. */
@@ -4254,12 +4555,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         return true;
     }
 
-    /** The shortcuts this build has, so the list never shows one that does nothing. */
-    private List<FnShortcutHelp.Row> getFnHelpRows() {
+    /**
+     * The shortcuts this build has, so the list never shows one that does nothing. In FN mode
+     * B closes the list instead, and brightness steps leave the list up, so its percentage
+     * would go stale: the toast says it.
+     */
+    private List<FnShortcutHelp.Row> getFnHelpRows(boolean fnMode) {
         final List<FnShortcutHelp.Row> rows = new ArrayList<>();
         if (getFnShortcut(KeyEvent.KEYCODE_VOLUME_UP) != FN_HOTKEY_NONE) {
             rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_brightness),
-                    getBrightnessPercent(),
+                    fnMode ? null : getBrightnessPercent(),
                     "Vol+", "Vol\u2212"));
         }
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_START) != FN_HOTKEY_NONE) {
@@ -4270,7 +4575,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_last_app), null,
                     "Select"));
         }
-        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_B) != FN_HOTKEY_NONE) {
+        if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_B) != FN_HOTKEY_NONE && !fnMode) {
             rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_app_switcher),
                     null, "B"));
         }
@@ -4695,11 +5000,18 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // TODO(b/117479243): handle it in InputPolicy
     /** {@inheritDoc} */
     @Override
-    public int interceptKeyBeforeQueueing(KeyEvent event, int policyFlags) {
+    public int interceptKeyBeforeQueueing(KeyEvent keyEvent, int policyFlags) {
         if (!mSystemBooted) {
             // If we have not yet booted, don't let key events do anything.
             return 0;
         }
+
+        // The button standing in for FN is FN from here on: Home, the list, the shortcuts
+        final boolean fnStandin = isFnStandinKey(keyEvent);
+        if (fnStandin) {
+            mFnStandinKeyCode = keyEvent.getKeyCode();
+        }
+        final KeyEvent event = fnStandin ? asFnKey(keyEvent) : keyEvent;
 
         final boolean interactive = (policyFlags & FLAG_INTERACTIVE) != 0;
         final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
@@ -4710,10 +5022,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         if (isFnButton(event)) {
             mFnDown = down;
+            if (down) {
+                mFnStandinHeld = fnStandin;
+            }
             // The list says "FN alone goes to the home screen", and a remapped FN may be a
             // game button held for long: only for FN as Home
             scheduleFnHelp(down && isFnKey(event));
         }
+        interceptFnChordBeforeQueueing(event, interactive);
 
         // If screen is off then we treat the case where the keyguard is open but hidden
         // the same as if it were open and in front.
@@ -6120,6 +6436,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         // Ensure observe happens in systemReady() since we need
         // LineageHardwareService to be up and running
         mSettingsObserver.observe();
+        observeFnStandin();
 
         readCameraLensCoverState();
         updateUiMode();

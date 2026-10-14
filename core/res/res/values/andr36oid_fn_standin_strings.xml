@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Hint under the FN shortcut list on a console without FN, where another button was
+         set to work as FN. %1$s is that button, like "L3" or "Extra button 1". One short line. -->
+    <string name="fn_help_footer_standin"><xliff:g id="button" example="L3">%1$s</xliff:g> works as FN. Let go to close, tap it for home.</string>
+    <!-- Hint under the FN shortcut list on a console without FN, opened by pressing both
+         volume buttons together. The next button runs its shortcut. One short line. -->
+    <string name="fn_help_footer_vol_both">Opened with Vol+ and Vol− together. B closes.</string>
+    <!-- Name of an extra button some consoles have, for the hint above -->
+    <string name="fn_help_extra_button">Extra button <xliff:g id="number" example="1">%1$d</xliff:g></string>
+
+    <java-symbol type="string" name="fn_help_footer_standin" />
+    <java-symbol type="string" name="fn_help_footer_vol_both" />
+    <java-symbol type="string" name="fn_help_extra_button" />
+</resources>
