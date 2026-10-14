@@ -1326,15 +1326,17 @@ public class StorageManager {
 
     /** {@hide} */
     public static Pair<String, Long> getPrimaryStoragePathAndSize() {
-        return Pair.create(null,
-                FileUtils.roundStorageSize(Environment.getDataDirectory().getTotalSpace()
-                    + Environment.getRootDirectory().getTotalSpace()));
+        // andr36oid: the real size. Rounded up (64 GB data to 128 GB) the rest showed as used,
+        // though it's the EASYROMS partition, not this one
+        return Pair.create(null, Environment.getDataDirectory().getTotalSpace()
+                + Environment.getRootDirectory().getTotalSpace());
     }
 
     /** {@hide} */
     public long getPrimaryStorageSize() {
-        return FileUtils.roundStorageSize(Environment.getDataDirectory().getTotalSpace()
-                + Environment.getRootDirectory().getTotalSpace());
+        // andr36oid: not rounded up, see getPrimaryStoragePathAndSize
+        return Environment.getDataDirectory().getTotalSpace()
+                + Environment.getRootDirectory().getTotalSpace();
     }
 
     /** {@hide} */

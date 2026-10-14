@@ -218,7 +218,8 @@ public class StorageStatsService extends IStorageStatsManager.Stub {
         // NOTE: No permissions required
 
         if (volumeUuid == StorageManager.UUID_PRIVATE_INTERNAL) {
-            return FileUtils.roundStorageSize(mStorage.getPrimaryStorageSize());
+            // andr36oid: not rounded up, see StorageManager.getPrimaryStorageSize
+            return mStorage.getPrimaryStorageSize();
         } else {
             final VolumeInfo vol = mStorage.findVolumeByUuid(volumeUuid);
             if (vol == null) {
