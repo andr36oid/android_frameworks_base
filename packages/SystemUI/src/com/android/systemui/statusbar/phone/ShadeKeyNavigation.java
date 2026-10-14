@@ -932,7 +932,39 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                 > mRoot.getWidth() * (long) mRoot.getHeight() / 2) {
             return false;
         }
+        if (!(view instanceof ExpandableView) && !hasVisibleContent(view)) {
+            // E.g. the media area with no media playing: there, but nothing to see
+            return false;
+        }
         return !(view instanceof ViewGroup) || view.isClickable() || view.isLongClickable();
+    }
+
+    /** Draws something: a background, an image, text, or a child that does. */
+    private static boolean hasVisibleContent(View view) {
+        if (view.getVisibility() != View.VISIBLE || view.getWidth() <= 0
+                || view.getHeight() <= 0 || view.getAlpha() < MIN_ALPHA) {
+            return false;
+        }
+        if (view.getBackground() != null || view.getForeground() != null) {
+            return true;
+        }
+        if (view instanceof ViewGroup) {
+            final ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                if (hasVisibleContent(group.getChildAt(i))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (view instanceof android.widget.ImageView) {
+            return ((android.widget.ImageView) view).getDrawable() != null;
+        }
+        if (view instanceof android.widget.TextView) {
+            return ((android.widget.TextView) view).getText().length() > 0;
+        }
+        // Anything else draws itself (sliders, custom views)
+        return true;
     }
 
     /** Shown and not faded out. */
