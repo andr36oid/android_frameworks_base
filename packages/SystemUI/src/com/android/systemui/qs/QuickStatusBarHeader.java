@@ -246,6 +246,9 @@ public class QuickStatusBarHeader extends RelativeLayout implements
 
         mHeaderQsPanel = findViewById(R.id.quick_qs_panel);
         mSystemIconsView = findViewById(R.id.quick_status_bar_system_icons);
+        // andr36oid: the clock row repeats the status bar and a controller could land on it;
+        // hidden, its space kept (the panel and the tile editor are laid out around it)
+        mSystemIconsView.setVisibility(View.INVISIBLE);
         mQuickQsStatusIcons = findViewById(R.id.quick_qs_status_icons);
         StatusIconContainer iconContainer = findViewById(R.id.statusIcons);
         // Ignore privacy icons because they show in the space above QQS
