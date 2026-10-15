@@ -447,6 +447,22 @@ class StorageManagerService extends IStorageManager.Stub
 
     private static final String EASYROMS_LABEL = "EASYROMS";
 
+    /*
+     * andr36oid: Settings > Storage > "Second SD card" off sets this to 0: a card in the
+     * second slot (any SD card but the boot card) isn't mounted. Settings mounts or
+     * unmounts it right away; this keeps it so at the next start or card change.
+     */
+    private static final String PROP_SD2_MOUNT = "persist.andr36oid.sd2_mount";
+
+    private static boolean isSecondSlot(VolumeInfo vol) {
+        return vol.disk != null && vol.disk.isSd()
+                && !BOOT_CARD_DISK_ID.equals(vol.disk.getId());
+    }
+
+    private static boolean secondSlotOff(VolumeInfo vol) {
+        return isSecondSlot(vol) && "0".equals(SystemProperties.get(PROP_SD2_MOUNT));
+    }
+
     private void holdToast(boolean released) {
         final String text;
         synchronized (mLock) {
@@ -490,7 +506,8 @@ class StorageManagerService extends IStorageManager.Stub
                 }
                 for (VolumeInfo vol : mHeldVolumes) {
                     if (mVolumes.get(vol.getId()) == vol
-                            && vol.getState() == VolumeInfo.STATE_UNMOUNTED) {
+                            && vol.getState() == VolumeInfo.STATE_UNMOUNTED
+                            && !secondSlotOff(vol)) {
                         Slog.i(TAG, "Mounting " + vol.getId() + ", held for the first start");
                         mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
                     }
@@ -1645,7 +1662,9 @@ class StorageManagerService extends IStorageManager.Stub
             }
 
             vol.mountUserId = mCurrentUserId;
-            if (!holdForFirstStartLocked(vol)) {
+            if (secondSlotOff(vol)) {
+                Slog.i(TAG, "Not mounting " + vol.getId() + ": the second SD card is off");
+            } else if (!holdForFirstStartLocked(vol)) {
                 mHandler.obtainMessage(H_VOLUME_MOUNT, vol).sendToTarget();
             }
 
