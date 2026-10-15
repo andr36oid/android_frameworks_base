@@ -38,6 +38,7 @@ import androidx.viewpager.widget.ViewPager;
 
 import com.android.settingslib.Utils;
 import com.android.systemui.R;
+import com.android.systemui.qs.customize.QSCustomizer;
 import com.android.systemui.qs.tileimpl.QSTileBaseView;
 import com.android.systemui.statusbar.NotificationShelf;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
@@ -186,6 +187,21 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
      * and right, text fields move the cursor, the tile editor's list moves by itself. The rest
      * (scroll views, the tile pager) would move the focus with the stock focus search.
      */
+    /** The tile editor's list if the view is in it. */
+    private static RecyclerView getEditorList(View view) {
+        RecyclerView list = null;
+        for (ViewParent parent = view.getParent(); parent instanceof View;
+                parent = parent.getParent()) {
+            if (list == null && parent instanceof RecyclerView) {
+                list = (RecyclerView) parent;
+            }
+            if (list != null && ((View) parent).getId() == R.id.qs_customize) {
+                return list;
+            }
+        }
+        return null;
+    }
+
     private boolean viewTakesKey(View focused, int keyCode) {
         if (focused == null) {
             return false;
@@ -275,6 +291,18 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             return false;
         }
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            final View focused = mRoot.findFocus();
+            if (focused != null && viewTakesKey(focused, event.getKeyCode())
+                    && getEditorList(focused) != null) {
+                // The tile editor's list: its own focus search lays out and scrolls to rows
+                // that are off the screen, ours only knows what is on it
+                final View next = focused.focusSearch(direction);
+                final View editor = mRoot.findViewById(R.id.qs_customize);
+                if (next != null && editor != null && isInside(next, editor)) {
+                    next.requestFocus(direction);
+                }
+                return true;
+            }
             // E.g. the slider is at its end: move on
             moveFocus(direction);
         }
@@ -418,7 +446,11 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         }
         final ExpandableNotificationRow row = getRow(focused);
         if (keyCode == KeyEvent.KEYCODE_BUTTON_X) {
-            if (row != null) {
+            final View editor = mRoot.findViewById(R.id.qs_customize);
+            if (editor instanceof QSCustomizer && isInside(focused, editor)) {
+                // The tile editor: X takes the tile out
+                ((QSCustomizer) editor).removeTile(focused);
+            } else if (row != null) {
                 dismiss(focused, row);
             } else if (focused instanceof QSTileBaseView) {
                 openTileDetails(focused);

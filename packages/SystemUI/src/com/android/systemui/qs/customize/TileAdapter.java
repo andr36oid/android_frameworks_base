@@ -86,6 +86,8 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
 
     private Holder mCurrentDrag;
     private int mAccessibilityAction = ACTION_NONE;
+    // andr36oid: the grid's width in tiles, like the quick settings
+    private int mColumns = 3;
     private int mAccessibilityFromIndex;
     private QSTileHost mHost;
     private final UiEventLogger mUiEventLogger;
@@ -232,6 +234,9 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
         }
         FrameLayout frame = (FrameLayout) inflater.inflate(R.layout.qs_customize_tile_frame, parent,
                 false);
+        // andr36oid: shorter tiles, more of them on the small screen
+        frame.getLayoutParams().height =
+                context.getResources().getDimensionPixelSize(R.dimen.qs_customize_tile_height);
         frame.addView(new CustomizeTileView(context, new QSIconViewImpl(context)));
         return new Holder(frame);
     }
@@ -270,8 +275,11 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
         if (holder.getItemViewType() == TYPE_EDIT) {
             final String titleText;
             Resources res = mContext.getResources();
-            if (mCurrentDrag == null) {
-                titleText = res.getString(R.string.drag_to_add_tiles);
+            if (mCurrentDrag == null && mAccessibilityAction == ACTION_MOVE) {
+                // andr36oid: game controller hints
+                titleText = res.getString(R.string.qs_edit_controller_move_hint);
+            } else if (mCurrentDrag == null) {
+                titleText = res.getString(R.string.qs_edit_controller_hint);
             } else if (!canRemoveTiles() && mCurrentDrag.getAdapterPosition() < mEditIndex) {
                 titleText = res.getString(R.string.drag_to_remove_disabled, mMinNumTiles);
             } else {
@@ -322,6 +330,30 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
         holder.mTileView.setOnClickListener(null);
         holder.mTileView.setFocusable(true);
         holder.mTileView.setFocusableInTouchMode(true);
+        // andr36oid: the tile being moved stands out
+        final float scale = mAccessibilityAction == ACTION_MOVE
+                && position == mAccessibilityFromIndex ? 1.15f : 1f;
+        holder.mTileView.setScaleX(scale);
+        holder.mTileView.setScaleY(scale);
+
+        if (mAccessibilityAction == ACTION_NONE) {
+            // andr36oid: for game controllers, A on a tile in use picks it up to move it, A on
+            // one below adds it
+            holder.mTileView.setOnClickListener(v -> {
+                final int pos = holder.getLayoutPosition();
+                if (pos == RecyclerView.NO_POSITION || mAccessibilityAction != ACTION_NONE) {
+                    return;
+                }
+                if (isCurrentTile(pos)) {
+                    startAccessibleMove(pos);
+                } else if (canAddFromPosition(pos)) {
+                    addFromPosition(pos);
+                    mFocusIndex = mEditIndex - 1;
+                    mNeedsFocus = true;
+                    notifyDataSetChanged();
+                }
+            });
+        }
 
         if (mAccessibilityAction != ACTION_NONE) {
             holder.mTileView.setClickable(selectable);
@@ -359,7 +391,8 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
                         int oldLeft, int oldTop, int oldRight, int oldBottom) {
                     holder.mTileView.removeOnLayoutChangeListener(this);
                     holder.mTileView.requestFocus();
-                    if (mAccessibilityAction == ACTION_NONE) {
+                    // andr36oid: a game controller keeps the focus
+                    if (mAccessibilityAction == ACTION_NONE && holder.mTileView.isInTouchMode()) {
                         holder.mTileView.clearFocus();
                     }
                 }
@@ -423,6 +456,35 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
     private void addFromPosition(int position) {
         if (!canAddFromPosition(position)) return;
         move(position, mEditIndex);
+    }
+
+    /** andr36oid: X on a game controller removes the tile. */
+    public boolean removeForController(int position) {
+        if (mAccessibilityAction != ACTION_NONE || !canRemoveFromPosition(position)) {
+            return false;
+        }
+        removeFromPosition(position);
+        mFocusIndex = Math.max(1, Math.min(position, mEditIndex - 1));
+        mNeedsFocus = true;
+        notifyDataSetChanged();
+        return true;
+    }
+
+    /** andr36oid: B puts a tile picked up for moving back down; false if none was. */
+    public boolean cancelControllerAction() {
+        if (mAccessibilityAction == ACTION_NONE) {
+            return false;
+        }
+        final int from = mAccessibilityFromIndex;
+        clearAccessibilityState();
+        mFocusIndex = from;
+        mNeedsFocus = true;
+        notifyDataSetChanged();
+        return true;
+    }
+
+    public void setColumns(int columns) {
+        mColumns = columns;
     }
 
     private void removeFromPosition(int position) {
@@ -585,7 +647,7 @@ public class TileAdapter extends RecyclerView.Adapter<Holder> implements TileSta
         @Override
         public int getSpanSize(int position) {
             final int type = getItemViewType(position);
-            return type == TYPE_EDIT || type == TYPE_DIVIDER || type == TYPE_HEADER ? 3 : 1;
+            return type == TYPE_EDIT || type == TYPE_DIVIDER || type == TYPE_HEADER ? mColumns : 1;
         }
     };
 

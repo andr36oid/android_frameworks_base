@@ -122,7 +122,10 @@ public class QSCustomizer extends LinearLayout implements OnMenuItemClickListene
         mTileQueryHelper.setListener(mTileAdapter);
         mRecyclerView.setAdapter(mTileAdapter);
         mTileAdapter.getItemTouchHelper().attachToRecyclerView(mRecyclerView);
-        GridLayoutManager layout = new GridLayoutManager(getContext(), 3) {
+        // andr36oid: as many columns as the quick settings
+        final int columns = getResources().getInteger(R.integer.quick_settings_num_columns);
+        mTileAdapter.setColumns(columns);
+        GridLayoutManager layout = new GridLayoutManager(getContext(), columns) {
             @Override
             public void onInitializeAccessibilityNodeInfoForItem(RecyclerView.Recycler recycler,
                     RecyclerView.State state, View host, AccessibilityNodeInfoCompat info) {
@@ -223,6 +226,19 @@ public class QSCustomizer extends LinearLayout implements OnMenuItemClickListene
 
     private void queryTiles() {
         mTileQueryHelper.queryTiles(mHost);
+    }
+
+    /** andr36oid: B on a game controller: first put down a tile being moved, then close. */
+    public void hideOrCancel() {
+        if (!mTileAdapter.cancelControllerAction()) {
+            hide();
+        }
+    }
+
+    /** andr36oid: X on a game controller removes the focused tile. */
+    public boolean removeTile(View focused) {
+        final RecyclerView.ViewHolder holder = mRecyclerView.findContainingViewHolder(focused);
+        return holder != null && mTileAdapter.removeForController(holder.getLayoutPosition());
     }
 
     public void hide() {

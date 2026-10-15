@@ -381,7 +381,7 @@ public class QSFragment extends LifecycleFragment implements QS, CommandQueue.Ca
     /** andr36oid: B on a game controller leaves the tile editor, the shade stays open. */
     public void closeCustomizer() {
         if (mQSCustomizer != null && mQSCustomizer.isCustomizing()) {
-            mQSCustomizer.hide();
+            mQSCustomizer.hideOrCancel();
         }
     }
 

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2026 The andr36oid Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<resources>
+    <!-- Hint above the unused tiles in the quick settings editor, for game controller buttons -->
+    <string name="qs_edit_controller_hint">A: pindah atau tambah  ·  X: hapus  ·  B: selesai</string>
+    <!-- Same hint while a tile is picked up to move it -->
+    <string name="qs_edit_controller_move_hint">Pergi ke tempat yang diinginkan lalu tekan A  ·  B: batal</string>
+</resources>
