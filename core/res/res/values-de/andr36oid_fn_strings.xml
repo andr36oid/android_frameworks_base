@@ -10,6 +10,8 @@
     <string name="fn_help_next_profile">Nächstes Leistungsprofil</string>
     <string name="fn_help_perf_overlay">Leistungs-Overlay</string>
     <string name="fn_help_touch_editor">Editor für Touch-Steuerung</string>
+    <!-- FN shortcut list row: FN + A opens the game that was played last -->
+    <string name="fn_help_continue">Letztes Spiel fortsetzen</string>
     <string name="fn_help_state_on">an</string>
     <string name="fn_help_percent"><xliff:g id="percent" example="60">%1$d</xliff:g> %%</string>
     <string name="fn_toast_brightness">Helligkeit <xliff:g id="percent" example="60">%1$d</xliff:g> %%</string>

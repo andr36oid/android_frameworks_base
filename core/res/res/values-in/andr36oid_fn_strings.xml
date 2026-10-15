@@ -10,6 +10,8 @@
     <string name="fn_help_next_profile">Profil performa berikutnya</string>
     <string name="fn_help_perf_overlay">Overlay performa</string>
     <string name="fn_help_touch_editor">Editor kontrol sentuh</string>
+    <!-- FN shortcut list row: FN + A opens the game that was played last -->
+    <string name="fn_help_continue">Lanjutkan game terakhir</string>
     <string name="fn_help_state_on">aktif</string>
     <string name="fn_help_percent"><xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
     <string name="fn_toast_brightness">Kecerahan <xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>

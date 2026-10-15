@@ -22,9 +22,11 @@
     <string name="fn_help_perf_overlay">Performance overlay</string>
     <!-- FN shortcut list row: FN + L1 -->
     <string name="fn_help_touch_editor">Touch controls editor</string>
-    <!-- Small green state after the joystick mouse row while the mouse is on [CHAR LIMIT=8] -->
+    <!-- FN shortcut list row: FN + A opens the game that was played last -->
+    <string name="fn_help_continue">Continue the last game</string>
+    <!-- Small state (accent colour) after the joystick mouse row while the mouse is on [CHAR LIMIT=8] -->
     <string name="fn_help_state_on">on</string>
-    <!-- Small green state after the brightness row: the screen brightness in percent -->
+    <!-- Small state (accent colour) after the brightness row: the screen brightness in percent -->
     <string name="fn_help_percent"><xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
     <!-- Toast after FN + Vol+ / Vol- -->
     <string name="fn_toast_brightness">Brightness <xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
@@ -43,6 +45,7 @@
     <java-symbol type="string" name="fn_help_next_profile" />
     <java-symbol type="string" name="fn_help_perf_overlay" />
     <java-symbol type="string" name="fn_help_touch_editor" />
+    <java-symbol type="string" name="fn_help_continue" />
     <java-symbol type="string" name="fn_help_state_on" />
     <java-symbol type="string" name="fn_help_percent" />
     <java-symbol type="string" name="fn_toast_brightness" />

@@ -4615,7 +4615,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (getFnShortcut(KeyEvent.KEYCODE_BUTTON_A) != FN_HOTKEY_NONE
                 && mContext.getPackageManager().resolveActivity(getContinueGameIntent(),
                         PackageManager.MATCH_SYSTEM_ONLY) != null) {
-            rows.add(new FnShortcutHelp.Row("Continue the last game", null, "A"));
+            rows.add(new FnShortcutHelp.Row(mContext.getString(R.string.fn_help_continue), null,
+                    "A"));
         }
         return rows;
     }
