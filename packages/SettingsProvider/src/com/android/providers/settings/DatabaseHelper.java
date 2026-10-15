@@ -2327,6 +2327,11 @@ class DatabaseHelper extends SQLiteOpenHelper {
             // persistent system property instead.
             //loadSetting(stmt, Settings.Secure.ADB_ENABLED, 0);
 
+            // andr36oid: the "R36S clear purple" accent until one is picked
+            loadSetting(stmt, Settings.Secure.THEME_CUSTOMIZATION_OVERLAY_PACKAGES,
+                    "{\"android.theme.customization.accent_color\":"
+                    + "\"org.andr36oid.overlay.accent.purple\"}");
+
             // Allow mock locations default, based on build
             loadSetting(stmt, Settings.Secure.ALLOW_MOCK_LOCATION,
                     "1".equals(SystemProperties.get("ro.allow.mock.location")) ? 1 : 0);
