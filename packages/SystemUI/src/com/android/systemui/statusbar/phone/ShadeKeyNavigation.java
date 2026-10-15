@@ -60,9 +60,9 @@ import java.util.function.BooleanSupplier;
  * <ul>
  * <li>A: press, hold for a long press (the key layout sends DPAD_CENTER for it)
  * <li>B: back: closes notification controls, tile details or the tile editor, then the shade
- * <li>X: dismiss the focused notification; on a tile with details (Wi-Fi, Bluetooth, ...)
- * open the details
- * <li>Y: long press: a tile's settings page, a notification's controls
+ * <li>X: dismiss the focused notification or media player; on a tile with details (Wi-Fi,
+ * Bluetooth, ...) open the details
+ * <li>Y: long press: a tile's settings page, a notification's or the media player's controls
  * <li>R1 / L1: jump to the notifications / back up to the first tile
  * <li>Right / Left on a notification: expand / collapse it
  * </ul>
@@ -467,6 +467,12 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             focusFirst();
             return;
         }
+        final View player = getMediaPlayer(focused);
+        if (player != null && (keyCode == KeyEvent.KEYCODE_BUTTON_X
+                || keyCode == KeyEvent.KEYCODE_BUTTON_Y)) {
+            onMediaButton(player, keyCode);
+            return;
+        }
         final ExpandableNotificationRow row = getRow(focused);
         if (keyCode == KeyEvent.KEYCODE_BUTTON_X) {
             final View editor = mRoot.findViewById(R.id.qs_customize);
@@ -534,8 +540,65 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
     }
 
     /** B closes a notification's controls before anything else. */
+    /** The media player card the view is in, or null. */
+    private View getMediaPlayer(View view) {
+        for (View v = view; v != null && v != mRoot; ) {
+            if (v.getId() == R.id.qs_media_controls) {
+                return v;
+            }
+            final ViewParent parent = v.getParent();
+            v = parent instanceof View ? (View) parent : null;
+        }
+        return null;
+    }
+
+    /**
+     * X on the media player dismisses it at once, Y opens its menu (settings, dismiss,
+     * cancel) with the focus on Dismiss. A player that can't be dismissed (still playing
+     * for an app that keeps it) opens the menu for X too, which says so.
+     */
+    private void onMediaButton(View player, int keyCode) {
+        final View dismiss = player.findViewById(R.id.dismiss);
+        final View cancel = player.findViewById(R.id.cancel);
+        if (isMediaMenuOpen(player)) {
+            if (keyCode == KeyEvent.KEYCODE_BUTTON_X && dismiss != null && dismiss.isEnabled()) {
+                dismiss.performClick();
+                focusFirstLater();
+            }
+            return;
+        }
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_X && dismiss != null && dismiss.isEnabled()) {
+            dismiss.performClick();
+            focusFirstLater();
+            return;
+        }
+        if (player.performLongClick()) {
+            mPendingFocus = dismiss != null && dismiss.isEnabled() ? dismiss : cancel;
+            mPendingUntil = SystemClock.uptimeMillis() + PENDING_FOCUS_TIMEOUT_MS;
+            mRoot.invalidate();
+        }
+    }
+
+    private static boolean isMediaMenuOpen(View player) {
+        final View cancel = player.findViewById(R.id.cancel);
+        return cancel != null && cancel.isShown() && cancel.getAlpha() > 0.5f;
+    }
+
     private boolean closeGuts(boolean down) {
         final View focused = mRoot.findFocus();
+        final View player = focused != null ? getMediaPlayer(focused) : null;
+        if (player != null && isMediaMenuOpen(player)) {
+            // B closes the media player's menu, back on its first button
+            if (!down) {
+                player.findViewById(R.id.cancel).performClick();
+                final View first = player.findViewById(R.id.album_art);
+                mPendingFocus = first != null && first.isClickable() ? first
+                        : player.findViewById(R.id.action0);
+                mPendingUntil = SystemClock.uptimeMillis() + PENDING_FOCUS_TIMEOUT_MS;
+                mRoot.invalidate();
+            }
+            return true;
+        }
         final ExpandableNotificationRow row = focused != null ? getRow(focused) : null;
         if (row == null || !row.areGutsExposed() || row.getGuts() == null) {
             return false;
@@ -793,6 +856,11 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                 targets.add(view);
             }
         }
+        // The media player: its buttons are the targets, not the whole card (the album art
+        // stands in for the card and opens the app). Not its seek bar: it would keep left
+        // and right, and seeking with it only works by touch
+        targets.removeIf(view -> view.getId() == R.id.qs_media_controls
+                || (view instanceof AbsSeekBar && getMediaPlayer(view) != null));
         // A tile's label can be a second button inside the tile, X presses that one
         final HashSet<View> targetSet = new HashSet<>(targets);
         targets.removeIf(view -> hasAncestorIn(view, targetSet));

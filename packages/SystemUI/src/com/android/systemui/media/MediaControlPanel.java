@@ -240,6 +240,15 @@ public class MediaControlPanel {
                 if (mMediaViewController.isGutsVisible()) return;
                 mActivityStarter.postStartActivityDismissingKeyguard(clickIntent);
             });
+            // andr36oid: a controller focuses the player's buttons, not the card; the album
+            // art is the button that opens the app
+            mViewHolder.getAlbumView().setOnClickListener(v -> {
+                if (mMediaViewController.isGutsVisible()) return;
+                mActivityStarter.postStartActivityDismissingKeyguard(clickIntent);
+            });
+        } else {
+            mViewHolder.getAlbumView().setOnClickListener(null);
+            mViewHolder.getAlbumView().setClickable(false);
         }
 
         ImageView albumView = mViewHolder.getAlbumView();
