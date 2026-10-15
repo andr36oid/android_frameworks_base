@@ -99,7 +99,9 @@ open class BlurUtils @Inject constructor(
      * @return {@code true} when supported.
      */
     open fun supportsBlursOnWindows(): Boolean {
-        return blurSupportedSysProp && !blurDisabledSysProp && ActivityManager.isHighEndGfx()
+        // andr36oid: not ActivityManager.isHighEndGfx(), which is false on low-RAM devices; the
+        // blur is SurfaceFlinger's, at 640x480 cheap enough for the Mali-G31
+        return blurSupportedSysProp && !blurDisabledSysProp
     }
 
     override fun dump(fd: FileDescriptor, pw: PrintWriter, args: Array<out String>) {

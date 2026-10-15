@@ -130,6 +130,9 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener, OnCo
      */
     public static final float BLUR_SCRIM_ALPHA = 0.54f;
 
+    /** andr36oid: how dark the app behind the open shade gets */
+    private static final float SHADE_DIM_ALPHA = 0.7f;
+
     static final int TAG_KEY_ANIM = R.id.scrim;
     private static final int TAG_START_ALPHA = R.id.scrim_alpha_start;
     private static final int TAG_END_ALPHA = R.id.scrim_alpha_end;
@@ -472,11 +475,11 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener, OnCo
         }
 
         if (mState == ScrimState.UNLOCKED || mState == ScrimState.BUBBLE_EXPANDED) {
-            // Darken scrim as you pull down the shade when unlocked, up to opaque: on a small
-            // screen the app showing through the open shade is only in the way
+            // Darken scrim as you pull down the shade when unlocked: the app behind ends up
+            // dark (and blurred, NotificationShadeDepthController), so the shade reads well
             float behindFraction = getInterpolatedFraction();
             behindFraction = (float) Math.pow(behindFraction, 0.8f);
-            mBehindAlpha = behindFraction;
+            mBehindAlpha = behindFraction * SHADE_DIM_ALPHA;
             mInFrontAlpha = 0;
         } else if (mState == ScrimState.KEYGUARD || mState == ScrimState.PULSING) {
             // Either darken of make the scrim transparent when you
