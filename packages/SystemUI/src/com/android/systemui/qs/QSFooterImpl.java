@@ -365,7 +365,8 @@ public class QSFooterImpl extends FrameLayout implements QSFooter,
         }
 
         if (v == mSettingsButton) {
-            if (!mDeviceProvisionedController.isCurrentUserSetup()) {
+            // andr36oid: the gear always opens Settings, also if setup didn't mark itself done
+            if (false && !mDeviceProvisionedController.isCurrentUserSetup()) {
                 // If user isn't setup just unlock the device and dump them back at SUW.
                 mActivityStarter.postQSRunnableDismissingKeyguard(() -> {
                 });

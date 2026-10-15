@@ -295,7 +295,9 @@ class NotificationSectionsManager @Inject internal constructor(
         // the section header, adjusted for the case where existing headers are in front of that
         // target, but won't be once they are moved / removed after the pass has completed.
 
-        val showHeaders = statusBarStateController.state != StatusBarState.KEYGUARD
+        // andr36oid: no section headers ("Silent", ...): with a game controller they were one
+        // more stop that does nothing useful; Clear all is in the footer
+        val showHeaders = false
         val usingPeopleFiltering = sectionsFeatureManager.isFilteringEnabled()
         val usingMediaControls = sectionsFeatureManager.isMediaControlsEnabled()
 
