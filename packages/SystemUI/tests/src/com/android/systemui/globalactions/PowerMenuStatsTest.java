@@ -178,9 +178,28 @@ public class PowerMenuStatsTest {
 
         write("proc/stat", "cpu  3 0 1 10 0 0 0 0 0 0\n");
         write("sys/class/power_supply/battery/status", "Charging\n");
+        write("sys/class/power_supply/battery/current_now", "500000\n");
         reader.sample();
         assertEquals(50, reader.cpuPercent);
         assertTrue(reader.charging);
+
+        // A charger the driver missed: the current going in still says charging
+        write("sys/class/power_supply/battery/status", "Discharging\n");
+        write("sys/class/power_supply/battery/current_now", "606000\n");
+        reader.sample();
+        assertTrue(reader.charging);
+        // and a game drawing more than the charger gives says discharging
+        write("sys/class/power_supply/battery/status", "Charging\n");
+        write("sys/class/power_supply/battery/current_now", "-300000\n");
+        reader.sample();
+        assertFalse(reader.charging);
+        // too little current to tell: the status decides (full)
+        write("sys/class/power_supply/battery/status", "Full\n");
+        write("sys/class/power_supply/battery/current_now", "-5000\n");
+        reader.sample();
+        assertTrue(reader.charging);
+        write("sys/class/power_supply/battery/current_now", "-500000\n");
+        reader.sample();
 
         final PowerMenuStatsReader snapshot = reader.snapshot();
         assertEquals(50, snapshot.cpuPercent);

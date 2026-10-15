@@ -155,6 +155,9 @@ final class PowerMenuStatsReader {
         mLastCpuTotal = total;
     }
 
+    /** Below this the current says nothing about the direction (full, or noise). */
+    private static final int MIN_DIRECTION_MICROAMPS = 20000;
+
     private void sampleBattery() {
         if (mBatteryPath == null) {
             batteryPercent = -1;
@@ -174,6 +177,11 @@ final class PowerMenuStatsReader {
                 ? Float.NaN : microVolts / 1e6f;
         batteryWatts = Float.isNaN(batteryAmps) || Float.isNaN(batteryVolts)
                 ? Float.NaN : batteryAmps * batteryVolts;
+        // The current's sign is what the battery really does (+ in, - out): a charger the
+        // driver missed, or a game drawing more than a weak charger gives, shows right
+        if (microAmps != Integer.MIN_VALUE && Math.abs(microAmps) >= MIN_DIRECTION_MICROAMPS) {
+            charging = microAmps > 0;
+        }
     }
 
     /** Used is MemTotal - MemAvailable, like the performance overlay. */
