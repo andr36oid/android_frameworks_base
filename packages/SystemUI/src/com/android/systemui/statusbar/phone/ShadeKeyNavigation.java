@@ -102,6 +102,9 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
     private boolean mFocusLost;
     // Focus this once it shows, e.g. a notification that is being scrolled into view
     private View mPendingFocus;
+    // A quick settings page sliding in: its tile gets the focus once it is in place
+    private ViewPager mPendingPager;
+    private boolean mPendingPageRight;
     // Focus the first button of these notification controls once they are open
     private ExpandableNotificationRow mPendingGuts;
     private long mPendingUntil;
@@ -275,8 +278,11 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         final int page = pager.getCurrentItem() + (right ? 1 : -1);
         if (pager.getAdapter() != null && page >= 0 && page < pager.getAdapter().getCount()) {
             pager.setCurrentItem(page, true /* smoothScroll */);
-            // The first tile of the new page, once it slides in
-            mFocusFirst = true;
+            // A tile of the new page once it has slid in; asking now would find no tile fully
+            // on the screen and land on the brightness slider
+            mPendingPager = pager;
+            mPendingPageRight = right;
+            mPendingUntil = SystemClock.uptimeMillis() + PENDING_FOCUS_TIMEOUT_MS;
             mRoot.invalidate();
         }
         return true;
@@ -317,6 +323,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
 
     public void onWindowFocusChanged(boolean hasFocus) {
         mPendingFocus = null;
+        mPendingPager = null;
         mPendingGuts = null;
         mRoot.invalidate();
     }
@@ -328,6 +335,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             mFocusFirst = true;
             mFocusLost = false;
             mPendingFocus = null;
+            mPendingPager = null;
             mPendingGuts = null;
         }
     }
@@ -379,7 +387,22 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                 focused.setDefaultFocusHighlightEnabled(false);
                 mFocusLost = true;
             }
-            if ((mFocusFirst || mFocusLost) && mPendingFocus == null) {
+            if (mPendingPager != null) {
+                final int width = mPendingPager.getWidth() + mPendingPager.getPageMargin();
+                final boolean settled = width > 0
+                        && mPendingPager.getScrollX() == mPendingPager.getCurrentItem() * width;
+                if (settled || timedOut) {
+                    final ViewPager pager = mPendingPager;
+                    mPendingPager = null;
+                    mFocusLost = false;
+                    if (!focusPageTile(pager, mPendingPageRight)) {
+                        focusFirst();
+                    }
+                } else {
+                    // keep checking while it slides
+                    mRoot.postInvalidateOnAnimation();
+                }
+            } else if ((mFocusFirst || mFocusLost) && mPendingFocus == null) {
                 focusFirst();
             }
         }
@@ -673,6 +696,29 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             mPendingUntil = SystemClock.uptimeMillis() + PENDING_FOCUS_TIMEOUT_MS;
             mRoot.invalidate();
         }
+    }
+
+    /** The top-left tile of the page after moving right, the top-right one after moving left. */
+    private boolean focusPageTile(ViewPager pager, boolean right) {
+        View best = null;
+        Rect bestRect = null;
+        for (View view : getPanelTargets()) {
+            if (!(view instanceof QSTileBaseView) || !isInside(view, pager)) {
+                continue;
+            }
+            final Rect rect = rectOf(view);
+            if (best == null || rect.top < bestRect.top - 1
+                    || (Math.abs(rect.top - bestRect.top) <= 1
+                            && (right ? rect.left < bestRect.left : rect.left > bestRect.left))) {
+                best = view;
+                bestRect = rect;
+            }
+        }
+        if (best == null) {
+            return false;
+        }
+        requestFocus(best);
+        return true;
     }
 
     private boolean focusFirst() {
