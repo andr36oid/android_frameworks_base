@@ -41,6 +41,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
+import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.UserHandle;
@@ -472,17 +473,12 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
         if ((flags & AudioManager.FLAG_SHOW_UI) == 0 || !mShowVolumeDialog) {
             return false;
         }
-        // if status bar isn't null, check if phone is in AOD, else check flags
-        // since we could be using a different status bar
-        return mStatusBarOptionalLazy.map(statusBarLazy -> {
-            StatusBar statusBar = statusBarLazy.get();
-            return statusBar.getWakefulnessState() != WakefulnessLifecycle.WAKEFULNESS_ASLEEP
-                    && statusBar.getWakefulnessState()
-                    != WakefulnessLifecycle.WAKEFULNESS_GOING_TO_SLEEP
-                    && statusBar.isDeviceInteractive() && (flags & AudioManager.FLAG_SHOW_UI) != 0
-                    && mShowVolumeDialog;
-        }).orElse(
-                mShowVolumeDialog && (flags & AudioManager.FLAG_SHOW_UI) != 0);
+        // andr36oid: the screen being on, from the power manager. StatusBar's wakefulness
+        // comes from the keyguard service, which these consoles turn off (no lock screen):
+        // it stayed "asleep" forever and the volume panel never showed. Not interactive
+        // also covers AOD and going to sleep.
+        final PowerManager pm = mContext.getSystemService(PowerManager.class);
+        return pm != null && pm.isInteractive();
     }
 
     boolean onVolumeChangedW(int stream, int flags) {
