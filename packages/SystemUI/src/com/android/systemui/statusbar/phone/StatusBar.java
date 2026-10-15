@@ -903,6 +903,11 @@ public class StatusBar extends SystemUI implements DemoMode,
 
     @Override
     public void start() {
+        // andr36oid: made here, on the main thread. Phones get it early from the navigation
+        // bar; these consoles have none, so the first use was startActivityDismissingKeyguard's
+        // background thread, where its Handler can't be made: SystemUI crashed on every
+        // activity started from the shade (the settings gear, Y on a tile, ...)
+        mAssistManagerLazy.get();
         mScreenLifecycle.addObserver(mScreenObserver);
         mWakefulnessLifecycle.addObserver(mWakefulnessObserver);
         mUiModeManager = mContext.getSystemService(UiModeManager.class);
