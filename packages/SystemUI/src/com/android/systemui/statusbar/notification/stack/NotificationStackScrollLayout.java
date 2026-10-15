@@ -476,6 +476,7 @@ public class NotificationStackScrollLayout extends ViewGroup implements ScrollAd
     private boolean mSwipingInProgress;
 
     private boolean mUsingLightTheme;
+    private boolean mDecorColorsSet;
     private boolean mQsExpanded;
     // andr36oid: the notifications stay laid out under the full quick settings in the shade
     // instead of going into the shelf, and the quick settings scroll away to show them
@@ -4971,10 +4972,14 @@ public class NotificationStackScrollLayout extends ViewGroup implements ScrollAd
      */
     @ShadeViewRefactor(RefactorComponent.DECORATOR)
     public void updateDecorViews(boolean lightTheme) {
-        if (lightTheme == mUsingLightTheme) {
+        // andr36oid: the shade is always dark (the app behind is darkened), so "No
+        // notifications", Manage and Clear all are white even on a light wallpaper
+        lightTheme = false;
+        if (lightTheme == mUsingLightTheme && mDecorColorsSet) {
             return;
         }
         mUsingLightTheme = lightTheme;
+        mDecorColorsSet = true;
         Context context = new ContextThemeWrapper(mContext,
                 lightTheme ? R.style.Theme_SystemUI_Light : R.style.Theme_SystemUI);
         final @ColorInt int textColor =

@@ -416,8 +416,8 @@ public class QuickStatusBarHeader extends RelativeLayout implements
         updateResources();
 
         // Update color schemes in landscape to use wallpaperTextColor
-        boolean shouldUseWallpaperTextColor =
-                newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE;
+        // andr36oid: not on these always-landscape consoles, the shade is dark
+        boolean shouldUseWallpaperTextColor = false;
         mClockView.useWallpaperTextColor(shouldUseWallpaperTextColor);
     }
 
