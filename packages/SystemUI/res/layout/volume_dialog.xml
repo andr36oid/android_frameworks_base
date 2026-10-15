@@ -89,10 +89,12 @@
                     <!-- volume rows added and removed here! :-) -->
             </LinearLayout>
             <View
+                android:id="@+id/volume_dialog_divider"
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:background="?android:attr/listDivider"/>
             <LinearLayout
+                android:id="@+id/volume_dialog_bottom"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal" >

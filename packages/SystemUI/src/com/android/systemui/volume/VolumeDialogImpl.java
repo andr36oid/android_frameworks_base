@@ -325,6 +325,15 @@ public class VolumeDialogImpl implements VolumeDialog,
             mODICaptionsTooltipViewStub = null;
         }
 
+        // andr36oid: with one volume for everything (these consoles) there is no ringer to
+        // switch and no other stream to expand to: no ringer button, no bottom bar
+        if (AudioSystem.isSingleVolume(mContext)) {
+            if (mRinger != null) mRinger.setVisibility(GONE);
+            final View divider = mDialog.findViewById(R.id.volume_dialog_divider);
+            if (divider != null) divider.setVisibility(GONE);
+            final View bottom = mDialog.findViewById(R.id.volume_dialog_bottom);
+            if (bottom != null) bottom.setVisibility(GONE);
+        }
         mMediaOutputView = mDialog.findViewById(R.id.media_output_container);
         mMediaOutputIcon = mDialog.findViewById(R.id.media_output);
         if (mMediaOutputIcon != null) {
@@ -655,7 +664,7 @@ public class VolumeDialogImpl implements VolumeDialog,
         }
 
         if (mExpandRowsView != null) {
-            mExpandRowsView.setVisibility(
+            mExpandRowsView.setVisibility(!AudioSystem.isSingleVolume(mContext) &&
                     mDeviceProvisionedController.isCurrentUserSetup() &&
                             mActivityManager.getLockTaskModeState() == LOCK_TASK_MODE_NONE ?
                             VISIBLE : GONE);
