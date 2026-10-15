@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- andr36oid: the volume panel's pill, as on Android 16 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+       android:shape="rectangle">
+    <solid android:color="?android:attr/colorBackgroundFloating" />
+    <corners android:radius="@dimen/volume_dialog_panel_radius" />
+</shape>

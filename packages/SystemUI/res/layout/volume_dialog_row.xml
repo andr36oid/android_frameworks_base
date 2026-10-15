@@ -52,6 +52,13 @@
                 android:layout_height="match_parent"
                 android:layoutDirection="rtl"
                 android:layout_gravity="center"
+                android:progressDrawable="@drawable/volume_row_seekbar"
+                android:thumb="@null"
+                android:splitTrack="false"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
+                android:minHeight="@dimen/volume_dialog_track_width"
+                android:maxHeight="@dimen/volume_dialog_track_width"
                 android:rotation="90" />
         </FrameLayout>
 

@@ -1380,7 +1380,8 @@ public class VolumeDialogImpl implements VolumeDialog,
         if (tint == row.cachedTint && mExpanded) return;
         row.slider.setProgressTintList(tint);
         row.slider.setThumbTintList(tint);
-        row.slider.setProgressBackgroundTintList(tint);
+        // andr36oid: the track faint, the fill full (Android 16 style track)
+        row.slider.setProgressBackgroundTintList(tint.withAlpha(0x40));
         row.slider.setAlpha(((float) alpha) / 255);
         row.icon.setImageTintList(tint);
         row.icon.setImageAlpha(alpha);
