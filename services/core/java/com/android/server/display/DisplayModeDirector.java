@@ -33,6 +33,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.DeviceConfig;
 import android.provider.Settings;
@@ -135,6 +136,7 @@ public class DisplayModeDirector {
      * is ready.
      */
     public void start(SensorManager sensorManager) {
+        restoreUnfinishedRefreshRateTrial();
         mSettingsObserver.observe();
         mDisplayObserver.observe();
         mSettingsObserver.observe();
@@ -145,6 +147,29 @@ public class DisplayModeDirector {
             notifyDesiredDisplayModeSpecsChangedLocked();
         }
 
+    }
+
+    /**
+     * andr36oid: Settings > Display > Peak refresh rate tries a new rate for 15 seconds and
+     * notes the old one here first. A rate the screen can't show stalls the display, so the
+     * trial can't always end itself; after a restart the old rate is put back before any mode
+     * is chosen, or the screen would go dark again.
+     */
+    private void restoreUnfinishedRefreshRateTrial() {
+        final String prop = "persist.andr36oid.refresh_trial_old";
+        final String old = SystemProperties.get(prop, "");
+        if (old.isEmpty()) {
+            return;
+        }
+        try {
+            final float rate = Float.parseFloat(old);
+            Settings.System.putFloatForUser(mContext.getContentResolver(),
+                    Settings.System.PEAK_REFRESH_RATE, rate, UserHandle.USER_SYSTEM);
+            Slog.i(TAG, "Refresh rate trial didn't finish, back to " + rate + " Hz");
+        } catch (RuntimeException e) {
+            Slog.w(TAG, "Couldn't put the old refresh rate back", e);
+        }
+        SystemProperties.set(prop, "");
     }
 
     public void setLoggingEnabled(boolean loggingEnabled) {
