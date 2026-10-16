@@ -157,9 +157,8 @@ class AppWarnings {
      * @param r activity record for which the warning may be displayed
      */
     public void showDeprecatedTargetDialogIfNeeded(ActivityRecord r) {
-        if (r.info.applicationInfo.targetSdkVersion < Build.VERSION.MIN_SUPPORTED_TARGET_SDK_INT) {
-            mUiHandler.showDeprecatedTargetDialog(r);
-        }
+        // andr36oid: never shown. Many games and emulators target old versions and run
+        // fine; the box only gets in the way, and there's nothing the user can do about it.
     }
 
     /**
