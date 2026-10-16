@@ -22,6 +22,7 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.SystemClock;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -75,6 +76,7 @@ import java.util.function.BooleanSupplier;
 public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         ViewTreeObserver.OnGlobalFocusChangeListener, PanelExpansionListener {
 
+    private static final String TAG = "ShadeKeyNav";
     private static final long PENDING_FOCUS_TIMEOUT_MS = 1000;
     // Views faded further than this are gone as far as focus is concerned
     private static final float MIN_ALPHA = 0.1f;
@@ -346,6 +348,8 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                 && (!oldFocus.isAttachedToWindow() || !oldFocus.isShown())) {
             // The quick row went away when the full quick settings opened, a notification
             // was removed, ...
+            Log.d(TAG, "focus lost: " + describe(oldFocus) + " went away, now "
+                    + describe(newFocus));
             mFocusLost = true;
         }
         mRoot.invalidate();
@@ -361,6 +365,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                     requestFocus(mPendingFocus);
                     mPendingFocus = null;
                 } else if (timedOut) {
+                    Log.d(TAG, "gave up waiting for " + describe(mPendingFocus));
                     mPendingFocus = null;
                 }
             }
@@ -403,6 +408,9 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                     mRoot.postInvalidateOnAnimation();
                 }
             } else if ((mFocusFirst || mFocusLost) && mPendingFocus == null) {
+                if (mFocusLost) {
+                    Log.d(TAG, "back to the first tile, focus was on " + describe(focused));
+                }
                 focusFirst();
             }
         }
@@ -641,6 +649,13 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             // Below quick settings come the notifications, maybe below the screen: the quick
             // settings scroll up to show them
             final Target first = notifications.isEmpty() ? null : notifications.get(0);
+            Log.d(TAG, "down from " + describe(focused) + " " + from + ": next "
+                    + describe(next) + (next != null ? " " + rectOf(next) : "")
+                    + ", first notification " + (first != null
+                            ? describe(first.view) + " " + rectOf(first.view)
+                            + (first.view.isShown() ? "" : " hidden") : "none")
+                    + ", " + panelTargets.size() + " panel targets, away "
+                    + mPanel.getQsScrollAway());
             if (first != null && (next == null
                     || rectOf(first.view).top < rectOf(next).top)) {
                 focusTarget(first);
@@ -1130,6 +1145,22 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
     /** Visible and not clipped away, e.g. the full quick settings footer behind the list. */
     private boolean isOnScreen(View view) {
         return isVisible(view) && view.getGlobalVisibleRect(new Rect());
+    }
+
+    /** Class and id of a view, for the log. */
+    private static String describe(View view) {
+        if (view == null) {
+            return "nothing";
+        }
+        String id = "";
+        if (view.getId() != View.NO_ID) {
+            try {
+                id = "/" + view.getResources().getResourceEntryName(view.getId());
+            } catch (android.content.res.Resources.NotFoundException e) {
+                id = "/" + view.getId();
+            }
+        }
+        return view.getClass().getSimpleName() + id;
     }
 
     private static boolean isInside(View view, View ancestor) {
