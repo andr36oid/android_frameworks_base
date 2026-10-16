@@ -209,6 +209,7 @@ private:
     std::string mLogReason;
     GLuint      mResizeTexture = 0;
     int         mResizeHeight = 0;
+    const char* mResizeShown = nullptr;
     bool        mKeysOpened = false;
     std::vector<int> mKeyFds;
     nsecs_t     mLastKeyCheck = 0;

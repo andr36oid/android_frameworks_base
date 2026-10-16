@@ -81,7 +81,8 @@ constexpr SkColor kHeaderColor = SkColorSetRGB(0x00, 0x30, 0x30);
 constexpr SkColor kHeaderTextColor = SkColorSetRGB(0x60, 0xe0, 0xd0);
 
 constexpr const char* kResizeProp = "sys.andr36oid.resizing";
-constexpr const char* kResizeText = "Resizing SD card ...";
+constexpr const char* kResizeText = "Resizing SD card ...";      // sys.andr36oid.resizing=1
+constexpr const char* kReclaimText = "Reclaiming SD card space ..."; // =2
 constexpr const char* kResizeFontFile = "/system/fonts/Roboto-Regular.ttf";
 constexpr SkColor kResizeColor = SkColorSetRGB(0x8c, 0x8c, 0x8c);
 
@@ -448,15 +449,23 @@ bool BootAnimation::logScreen() {
 
 // andr36oid: "Resizing SD card ..." in grey under the logo while the first start sets up
 // the card. andr36oid-firstresize.sh sets sys.andr36oid.resizing=1 and init clears it at
-// post-fs-data, after Android has formatted userdata. The logo fills the middle third of
+// post-fs-data, after Android has formatted userdata. 2: "Reclaiming SD card space ...",
+// while userdata grows over the bundled apps' partition (AUTOAPK) once they're installed. The logo fills the middle third of
 // the animation (gen-bootanimation.sh), the line goes just below it. The strip is opaque
 // black like the background there, so it needs no blending.
 void BootAnimation::drawResizeNotice(int x, int y, int w, int h) {
     char value[PROPERTY_VALUE_MAX];
     property_get(kResizeProp, value, "0");
-    if (strcmp(value, "1") != 0 || w <= 0 || h <= 0) return;
+    const char* text = strcmp(value, "1") == 0 ? kResizeText
+            : strcmp(value, "2") == 0 ? kReclaimText : nullptr;
+    if (text == nullptr || w <= 0 || h <= 0) return;
 
+    if (mResizeTexture != 0 && mResizeShown != text) {
+        glDeleteTextures(1, &mResizeTexture);
+        mResizeTexture = 0;
+    }
     if (mResizeTexture == 0) {
+        mResizeShown = text;
         sk_sp<SkTypeface> face = SkTypeface::MakeFromFile(kResizeFontFile);
         if (face == nullptr) face = SkTypeface::MakeDefault();
         SkFont font(face, std::max(12, h / 24));
@@ -472,9 +481,8 @@ void BootAnimation::drawResizeNotice(int x, int y, int w, int h) {
         SkPaint paint;
         paint.setAntiAlias(true);
         paint.setColor(kResizeColor);
-        const SkScalar tw = font.measureText(kResizeText, strlen(kResizeText),
-                SkTextEncoding::kUTF8);
-        canvas.drawString(kResizeText, (w - tw) / 2, (th - metrics.fDescent - metrics.fAscent) / 2,
+        const SkScalar tw = font.measureText(text, strlen(text), SkTextEncoding::kUTF8);
+        canvas.drawString(text, (w - tw) / 2, (th - metrics.fDescent - metrics.fAscent) / 2,
                 font, paint);
 
         // The same texture setup as the boot log's
@@ -504,7 +512,7 @@ void BootAnimation::drawResizeNotice(int x, int y, int w, int h) {
         GLint crop[4] = { 0, th, w, -th };
         glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_CROP_RECT_OES, crop);
         mResizeHeight = th;
-        ALOGI("first start: showing \"%s\"", kResizeText);
+        ALOGI("showing \"%s\"", text);
     } else {
         glBindTexture(GL_TEXTURE_2D, mResizeTexture);
     }
