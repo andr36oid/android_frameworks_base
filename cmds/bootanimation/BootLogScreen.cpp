@@ -82,7 +82,7 @@ constexpr SkColor kHeaderTextColor = SkColorSetRGB(0x60, 0xe0, 0xd0);
 
 constexpr const char* kResizeProp = "sys.andr36oid.resizing";
 constexpr const char* kResizeText = "Resizing SD card ...";      // sys.andr36oid.resizing=1
-constexpr const char* kReclaimText = "Reclaiming SD card space ..."; // =2
+constexpr const char* kReclaimText = "Cleaning up first boot partitions ..."; // =2
 constexpr const char* kResizeFontFile = "/system/fonts/Roboto-Regular.ttf";
 constexpr SkColor kResizeColor = SkColorSetRGB(0x8c, 0x8c, 0x8c);
 
@@ -449,7 +449,7 @@ bool BootAnimation::logScreen() {
 
 // andr36oid: "Resizing SD card ..." in grey under the logo while the first start sets up
 // the card. andr36oid-firstresize.sh sets sys.andr36oid.resizing=1 and init clears it at
-// post-fs-data, after Android has formatted userdata. 2: "Reclaiming SD card space ...",
+// post-fs-data, after Android has formatted userdata. 2: "Cleaning up first boot partitions ...",
 // while userdata grows over the bundled apps' partition (AUTOAPK) once they're installed. The logo fills the middle third of
 // the animation (gen-bootanimation.sh), the line goes just below it. The strip is opaque
 // black like the background there, so it needs no blending.
