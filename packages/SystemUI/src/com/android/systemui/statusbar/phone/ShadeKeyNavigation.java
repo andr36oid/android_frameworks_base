@@ -102,6 +102,10 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
     private boolean mFocusFirst = true;
     // The focused view was hidden or removed
     private boolean mFocusLost;
+    // It was in the media player: go back there instead of to the first tile. Each media
+    // update can take the player out of the carousel and put it back, and a button can be
+    // hidden for a moment while the player changes state.
+    private View mLostMediaFocus;
     // Focus this once it shows, e.g. a notification that is being scrolled into view
     private View mPendingFocus;
     // A quick settings page sliding in: its tile gets the focus once it is in place
@@ -336,6 +340,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             // Closed: the next time it opens, start over on the first tile
             mFocusFirst = true;
             mFocusLost = false;
+            mLostMediaFocus = null;
             mPendingFocus = null;
             mPendingPager = null;
             mPendingGuts = null;
@@ -351,6 +356,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             Log.d(TAG, "focus lost: " + describe(oldFocus) + " went away, now "
                     + describe(newFocus));
             mFocusLost = true;
+            mLostMediaFocus = getMediaPlayer(oldFocus) != null ? oldFocus : null;
         }
         mRoot.invalidate();
     }
@@ -407,6 +413,9 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                     // keep checking while it slides
                     mRoot.postInvalidateOnAnimation();
                 }
+            } else if (mFocusLost && !mFocusFirst && mPendingFocus == null
+                    && backToMediaPlayer()) {
+                mFocusLost = false;
             } else if ((mFocusFirst || mFocusLost) && mPendingFocus == null) {
                 if (mFocusLost) {
                     Log.d(TAG, "back to the first tile, focus was on " + describe(focused));
@@ -415,6 +424,26 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             }
         }
         updateFocusRect(active);
+        return true;
+    }
+
+    /**
+     * Puts the focus back on the media player it was taken from: on the same button if it is
+     * there again, else on the player's first one. False when the player itself is gone.
+     */
+    private boolean backToMediaPlayer() {
+        final View lost = mLostMediaFocus;
+        mLostMediaFocus = null;
+        final View player = lost != null ? getMediaPlayer(lost) : null;
+        if (player == null || !player.isAttachedToWindow() || !isVisible(player)) {
+            return false;
+        }
+        final View back = lost.isAttachedToWindow() && isVisible(lost) && isUsefulFocusable(lost)
+                ? lost : firstTarget(player);
+        if (back == null || !requestFocus(back)) {
+            return false;
+        }
+        Log.d(TAG, "back to the media player: " + describe(back));
         return true;
     }
 

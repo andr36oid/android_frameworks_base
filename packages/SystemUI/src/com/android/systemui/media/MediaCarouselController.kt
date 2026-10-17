@@ -232,10 +232,16 @@ class MediaCarouselController @Inject constructor(
     }
 
     private fun reorderAllPlayers() {
-        mediaContent.removeAllViews()
-        for (mediaPlayer in MediaPlayerData.players()) {
-            mediaPlayer.view?.let {
-                mediaContent.addView(it.player)
+        // andr36oid: every media update (play, pause, a new song) comes here. Taking the
+        // players out and putting them back in the same order cleared the focus of a game
+        // controller on the player, so only do it when the order really changed.
+        val players = MediaPlayerData.players().mapNotNull { it.view?.player }
+        val inOrder = players.size == mediaContent.childCount &&
+                players.indices.all { mediaContent.getChildAt(it) === players[it] }
+        if (!inOrder) {
+            mediaContent.removeAllViews()
+            for (player in players) {
+                mediaContent.addView(player)
             }
         }
         mediaCarouselScrollHandler.onPlayersChanged()
