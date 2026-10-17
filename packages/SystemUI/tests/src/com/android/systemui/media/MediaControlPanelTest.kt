@@ -346,7 +346,7 @@ public class MediaControlPanelTest : SysuiTestCase() {
     }
 
     @Test
-    fun dismissButtonDisabled() {
+    fun dismissButtonEnabledWhileNotClearable() {
         val mediaKey = "key for dismissal"
         player.attach(holder)
         val state = MediaData(USER_ID, true, BG_COLOR, APP, null, ARTIST, TITLE, null, emptyList(),
@@ -354,6 +354,7 @@ public class MediaControlPanelTest : SysuiTestCase() {
                 isClearable = false, notificationKey = KEY)
         player.bind(state, mediaKey)
 
-        assertThat(dismiss.isEnabled).isEqualTo(false)
+        // andr36oid: a playing session can be dismissed too, with only a controller
+        assertThat(dismiss.isEnabled).isEqualTo(true)
     }
 }

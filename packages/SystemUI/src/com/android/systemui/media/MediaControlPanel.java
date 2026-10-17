@@ -366,7 +366,10 @@ public class MediaControlPanel {
         mBackgroundExecutor.execute(() -> mSeekBarViewModel.updateController(controller));
 
         // Guts label
-        boolean isDismissible = data.isClearable();
+        // andr36oid: a player that is still playing can be dismissed too (its app's
+        // notification can't be cleared, so stock disables Dismiss). Dismiss stops the session
+        // first (dismissMediaData), so with only a controller the player can always be closed
+        boolean isDismissible = true;
         mViewHolder.getSettingsText().setText(isDismissible
                 ? R.string.controls_media_close_session
                 : R.string.controls_media_active_session);

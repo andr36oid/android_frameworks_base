@@ -470,15 +470,17 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
                 }
                 return;
         }
-        if (mFocusFirst || focused == null || !isTarget(focused)) {
-            // Nothing sensible has focus yet, show where it is first
-            focusFirst();
-            return;
-        }
-        final View player = getMediaPlayer(focused);
+        // Anywhere on the media player (a button, the album art, its menu, or the card itself
+        // when the focus ended up there), X dismisses it and Y opens its menu
+        final View player = !mFocusFirst && focused != null ? getMediaPlayer(focused) : null;
         if (player != null && (keyCode == KeyEvent.KEYCODE_BUTTON_X
                 || keyCode == KeyEvent.KEYCODE_BUTTON_Y)) {
             onMediaButton(player, keyCode);
+            return;
+        }
+        if (mFocusFirst || focused == null || !isTarget(focused)) {
+            // Nothing sensible has focus yet, show where it is first
+            focusFirst();
             return;
         }
         final ExpandableNotificationRow row = getRow(focused);
@@ -547,7 +549,6 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         }
     }
 
-    /** B closes a notification's controls before anything else. */
     /** The media player card the view is in, or null. */
     private View getMediaPlayer(View view) {
         for (View v = view; v != null && v != mRoot; ) {
@@ -561,23 +562,21 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
     }
 
     /**
-     * X on the media player dismisses it at once, Y opens its menu (settings, dismiss,
-     * cancel) with the focus on Dismiss. A player that can't be dismissed (still playing
-     * for an app that keeps it) opens the menu for X too, which says so.
+     * X on the media player dismisses it at once, also while it plays (Dismiss stops it), with
+     * its menu open or not. Y opens its menu (settings, dismiss, cancel) with the focus on
+     * Dismiss.
      */
     private void onMediaButton(View player, int keyCode) {
         final View dismiss = player.findViewById(R.id.dismiss);
         final View cancel = player.findViewById(R.id.cancel);
-        if (isMediaMenuOpen(player)) {
-            if (keyCode == KeyEvent.KEYCODE_BUTTON_X && dismiss != null && dismiss.isEnabled()) {
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_X) {
+            if (dismiss != null && dismiss.isEnabled()) {
                 dismiss.performClick();
                 focusFirstLater();
             }
             return;
         }
-        if (keyCode == KeyEvent.KEYCODE_BUTTON_X && dismiss != null && dismiss.isEnabled()) {
-            dismiss.performClick();
-            focusFirstLater();
+        if (isMediaMenuOpen(player)) {
             return;
         }
         if (player.performLongClick()) {
@@ -592,6 +591,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         return cancel != null && cancel.isShown() && cancel.getAlpha() > 0.5f;
     }
 
+    /** B closes a notification's or the media player's controls before anything else. */
     private boolean closeGuts(boolean down) {
         final View focused = mRoot.findFocus();
         final View player = focused != null ? getMediaPlayer(focused) : null;
