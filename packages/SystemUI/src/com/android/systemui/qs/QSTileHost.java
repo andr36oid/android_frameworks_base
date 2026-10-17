@@ -19,6 +19,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
+import android.database.ContentObserver;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -80,6 +81,9 @@ public class QSTileHost implements QSHost, Tunable, PluginListener<QSFactory>, D
     private static final int MAX_QS_INSTANCE_ID = 1 << 20;
 
     public static final String TILES_SETTING = Secure.QS_TILES;
+    /** Settings.Global, 0 while no Wi-Fi or Bluetooth adapter is plugged in */
+    public static final String WIFI_ADAPTER = "andr36oid_wifi_adapter";
+    public static final String BT_ADAPTER = "andr36oid_bt_adapter";
 
     private final Context mContext;
     private final LinkedHashMap<String, QSTile> mTiles = new LinkedHashMap<>();
@@ -138,6 +142,17 @@ public class QSTileHost implements QSHost, Tunable, PluginListener<QSFactory>, D
             // QSTileHost -> XXXTile -> QSTileHost. Posting ensures creation
             // finishes before creating any tiles.
             tunerService.addTunable(this, TILES_SETTING);
+            // andr36oid: the Wi-Fi and Bluetooth tiles come and go with their USB adapter
+            final ContentObserver adapters = new ContentObserver(mainHandler) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    recheckAvailability();
+                }
+            };
+            mContext.getContentResolver().registerContentObserver(
+                    Settings.Global.getUriFor(WIFI_ADAPTER), false, adapters);
+            mContext.getContentResolver().registerContentObserver(
+                    Settings.Global.getUriFor(BT_ADAPTER), false, adapters);
             // AutoTileManager can modify mTiles so make sure mTiles has already been initialized.
             mAutoTiles = autoTiles.get();
         });
@@ -177,6 +192,16 @@ public class QSTileHost implements QSHost, Tunable, PluginListener<QSFactory>, D
         // Force remove and recreate of all tiles.
         String value = mTunerService.getValue(TILES_SETTING);
         onTuningChanged(TILES_SETTING, "");
+        onTuningChanged(TILES_SETTING, value);
+    }
+
+    /**
+     * Adds tiles that became available and drops ones that aren't anymore, keeping the
+     * others as they are.
+     */
+    private void recheckAvailability() {
+        final String value = mTunerService.getValue(TILES_SETTING);
+        mTileSpecs.clear();
         onTuningChanged(TILES_SETTING, value);
     }
 

@@ -25,6 +25,7 @@ import android.provider.Settings;
 import android.util.Slog;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashSet;
@@ -53,18 +54,32 @@ public final class UsbWifiHotplugService extends SystemService {
     private static final int WIFI_ENABLED = 1;
     private static final int WIFI_ENABLED_AIRPLANE_OVERRIDE = 2;
 
+    // 1 while a Wi-Fi or Bluetooth adapter is plugged in, 0 while none is. SystemUI hides
+    // the Wi-Fi and Bluetooth tiles at 0 (no adapter is built into these consoles).
+    private static final String WIFI_ADAPTER = "andr36oid_wifi_adapter";
+    private static final String BT_ADAPTER = "andr36oid_bt_adapter";
+    // Lets sysfs settle after an adapter comes or goes before it is looked at again
+    private static final long PRESENCE_DELAY_MS = 500;
+
     private final Handler mHandler;
     private final Runnable mStartWifi = this::startWifiIfWanted;
+    private final Runnable mUpdatePresence = this::updatePresence;
+    private volatile boolean mStartWifiOnPlug;
     private int mRetries;
     private Set<String> mWifiIds; // "vvvv:pppp", read on first use
 
     private final UEventObserver mObserver = new UEventObserver() {
         @Override
         public void onUEvent(UEventObserver.UEvent event) {
-            if (!"add".equals(event.get("ACTION"))) {
+            final String action = event.get("ACTION");
+            final String subsystem = event.get("SUBSYSTEM");
+            if ("add".equals(action) || "remove".equals(action)) {
+                mHandler.removeCallbacks(mUpdatePresence);
+                mHandler.postDelayed(mUpdatePresence, PRESENCE_DELAY_MS);
+            }
+            if (!"add".equals(action) || !mStartWifiOnPlug) {
                 return;
             }
-            final String subsystem = event.get("SUBSYSTEM");
             if ("net".equals(subsystem)) {
                 // Driver already loaded or built in
                 final String iface = event.get("INTERFACE");
@@ -94,12 +109,67 @@ public final class UsbWifiHotplugService extends SystemService {
 
     @Override
     public void onBootPhase(int phase) {
-        if (phase != PHASE_BOOT_COMPLETED
-                || !SystemProperties.getBoolean("ro.wifi.usb_hotplug", false)) {
-            return;
+        if (phase == PHASE_ACTIVITY_MANAGER_READY) {
+            // Before SystemUI starts, so its tiles never show for a missing adapter
+            updatePresence();
+            mObserver.startObserving("SUBSYSTEM=usb");
+            mObserver.startObserving("SUBSYSTEM=net");
+            mObserver.startObserving("SUBSYSTEM=bluetooth");
+        } else if (phase == PHASE_BOOT_COMPLETED) {
+            mStartWifiOnPlug = SystemProperties.getBoolean("ro.wifi.usb_hotplug", false);
         }
-        mObserver.startObserving("SUBSYSTEM=usb");
-        mObserver.startObserving("SUBSYSTEM=net");
+    }
+
+    /** Publishes whether a Wi-Fi and a Bluetooth adapter are plugged in. */
+    private void updatePresence() {
+        boolean wifi = false;
+        // A known Wi-Fi dongle: its driver is only loaded while Wi-Fi is on, so wlan0
+        // alone doesn't say whether one is there
+        final File[] usb = new File("/sys/bus/usb/devices").listFiles();
+        if (usb != null) {
+            for (File dev : usb) {
+                final String vid = readLine(new File(dev, "idVendor"));
+                final String pid = readLine(new File(dev, "idProduct"));
+                if (vid != null && pid != null
+                        && isWifiAdapter(vid.toLowerCase(Locale.US) + ":"
+                                + pid.toLowerCase(Locale.US))) {
+                    wifi = true;
+                    break;
+                }
+            }
+        }
+        // Or a Wi-Fi interface from anything else (SDIO Wi-Fi on some clones)
+        wifi = wifi || hasEntry("/sys/class/net", "wlan");
+        // hciN:M entries are connections, not controllers
+        final boolean bt = hasEntry("/sys/class/bluetooth", "hci");
+        Slog.i(TAG, "Adapters: Wi-Fi " + (wifi ? "yes" : "no")
+                + ", Bluetooth " + (bt ? "yes" : "no"));
+        Settings.Global.putInt(getContext().getContentResolver(), WIFI_ADAPTER, wifi ? 1 : 0);
+        Settings.Global.putInt(getContext().getContentResolver(), BT_ADAPTER, bt ? 1 : 0);
+    }
+
+    private static boolean hasEntry(String dir, String prefix) {
+        final String[] names = new File(dir).list();
+        if (names != null) {
+            for (String name : names) {
+                if (name.startsWith(prefix) && name.indexOf(':') < 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static String readLine(File file) {
+        if (!file.exists()) {
+            return null;
+        }
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            final String line = reader.readLine();
+            return line != null ? line.trim() : null;
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private void scheduleStart(String reason) {
@@ -126,7 +196,7 @@ public final class UsbWifiHotplugService extends SystemService {
         }
     }
 
-    private boolean isWifiAdapter(String id) {
+    private synchronized boolean isWifiAdapter(String id) {
         if (mWifiIds == null) {
             final Set<String> ids = new HashSet<>();
             try (BufferedReader reader = new BufferedReader(new FileReader(ID_LIST))) {

@@ -41,6 +41,7 @@ import com.android.systemui.qs.AlphaControlledSignalTileView;
 import com.android.systemui.qs.QSDetailItems;
 import com.android.systemui.qs.QSDetailItems.Item;
 import com.android.systemui.qs.QSHost;
+import com.android.systemui.qs.QSTileHost;
 import com.android.systemui.qs.tileimpl.QSIconViewImpl;
 import com.android.systemui.qs.tileimpl.QSTileImpl;
 import com.android.systemui.statusbar.policy.NetworkController;
@@ -246,7 +247,10 @@ public class WifiTile extends QSTileImpl<SignalState> {
 
     @Override
     public boolean isAvailable() {
-        return mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI);
+        // andr36oid: hidden while no Wi-Fi adapter is plugged in (UsbWifiHotplugService)
+        return mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI)
+                && Settings.Global.getInt(mContext.getContentResolver(),
+                        QSTileHost.WIFI_ADAPTER, 1) != 0;
     }
 
     private static String removeDoubleQuotes(String string) {

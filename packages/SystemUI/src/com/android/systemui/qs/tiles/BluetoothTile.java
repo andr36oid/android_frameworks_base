@@ -43,6 +43,7 @@ import com.android.systemui.plugins.qs.QSTile.BooleanState;
 import com.android.systemui.qs.QSDetailItems;
 import com.android.systemui.qs.QSDetailItems.Item;
 import com.android.systemui.qs.QSHost;
+import com.android.systemui.qs.QSTileHost;
 import com.android.systemui.qs.tileimpl.QSTileImpl;
 import com.android.systemui.statusbar.policy.BluetoothController;
 
@@ -241,7 +242,10 @@ public class BluetoothTile extends QSTileImpl<BooleanState> {
 
     @Override
     public boolean isAvailable() {
-        return mController.isBluetoothSupported();
+        // andr36oid: hidden while no Bluetooth adapter is plugged in (UsbWifiHotplugService)
+        return mController.isBluetoothSupported()
+                && Settings.Global.getInt(mContext.getContentResolver(),
+                        QSTileHost.BT_ADAPTER, 1) != 0;
     }
 
     private final BluetoothController.Callback mCallback = new BluetoothController.Callback() {
