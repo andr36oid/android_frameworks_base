@@ -60,6 +60,10 @@ public final class UsbWifiHotplugService extends SystemService {
     private static final String BT_ADAPTER = "andr36oid_bt_adapter";
     // Lets sysfs settle after an adapter comes or goes before it is looked at again
     private static final long PRESENCE_DELAY_MS = 500;
+    // Kernel Tweaks > Wi-Fi and Bluetooth drivers off (module.no_radios=1): the kernel loads
+    // no Wi-Fi or Bluetooth driver this start, so a built-in chip on the USB port is there
+    // but can't be used. Both count as missing then, and Wi-Fi isn't started for it.
+    private static final String NO_RADIOS = "/sys/module/module/parameters/no_radios";
 
     private final Handler mHandler;
     private final Runnable mStartWifi = this::startWifiIfWanted;
@@ -116,12 +120,23 @@ public final class UsbWifiHotplugService extends SystemService {
             mObserver.startObserving("SUBSYSTEM=net");
             mObserver.startObserving("SUBSYSTEM=bluetooth");
         } else if (phase == PHASE_BOOT_COMPLETED) {
-            mStartWifiOnPlug = SystemProperties.getBoolean("ro.wifi.usb_hotplug", false);
+            mStartWifiOnPlug = SystemProperties.getBoolean("ro.wifi.usb_hotplug", false)
+                    && !radiosOff();
         }
+    }
+
+    private static boolean radiosOff() {
+        return "Y".equals(readLine(new File(NO_RADIOS)));
     }
 
     /** Publishes whether a Wi-Fi and a Bluetooth adapter are plugged in. */
     private void updatePresence() {
+        if (radiosOff()) {
+            Slog.i(TAG, "Wi-Fi and Bluetooth drivers are off (Kernel Tweaks)");
+            Settings.Global.putInt(getContext().getContentResolver(), WIFI_ADAPTER, 0);
+            Settings.Global.putInt(getContext().getContentResolver(), BT_ADAPTER, 0);
+            return;
+        }
         boolean wifi = false;
         // A known Wi-Fi dongle: its driver is only loaded while Wi-Fi is on, so wlan0
         // alone doesn't say whether one is there
