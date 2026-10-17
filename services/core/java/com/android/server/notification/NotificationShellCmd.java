@@ -68,6 +68,7 @@ public class NotificationShellCmd extends ShellCommand {
             + "  disallow_dnd PACKAGE [user_id (current user if not specified)]\n"
             + "  suspend_package PACKAGE\n"
             + "  unsuspend_package PACKAGE\n"
+            + "  set_notifications_enabled PACKAGE true|false [user_id]\n"
             + "  reset_assistant_user_set [user_id (current user if not specified)]\n"
             + "  get_approved_assistant [user_id (current user if not specified)]\n"
             + "  post [--help | flags] TAG TEXT\n"
@@ -163,6 +164,27 @@ public class NotificationShellCmd extends ShellCommand {
 
         try {
             switch (cmd.replace('-', '_')) {
+                case "set_notifications_enabled": {
+                    String packageName = getNextArgRequired();
+                    String enabled = getNextArgRequired();
+                    if (!"true".equals(enabled) && !"false".equals(enabled)) {
+                        pw.println("Invalid enabled value - must be true or false");
+                        return -1;
+                    }
+                    int userId = ActivityManager.getCurrentUser();
+                    if (peekNextArg() != null) {
+                        userId = Integer.parseInt(getNextArgRequired());
+                    }
+                    int appUid = mPm.getPackageUidAsUser(packageName, userId);
+                    final long token = Binder.clearCallingIdentity();
+                    try {
+                        mBinderService.setNotificationsEnabledForPackage(packageName, appUid,
+                                Boolean.parseBoolean(enabled));
+                    } finally {
+                        Binder.restoreCallingIdentity(token);
+                    }
+                    break;
+                }
                 case "set_dnd": {
                     String mode = getNextArgRequired();
                     int interruptionFilter = INTERRUPTION_FILTER_UNKNOWN;

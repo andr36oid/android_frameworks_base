@@ -109,6 +109,14 @@ public class NotificationShellCmdTest extends UiServiceTestCase {
     }
 
     @Test
+    public void testDisablePackageNotifications() throws Exception {
+        final String pkg = mTestableContext.getPackageName();
+        final int uid = mTestableContext.getPackageManager().getPackageUidAsUser(pkg, 0);
+        doCmd("set_notifications_enabled", pkg, "false", "0");
+        verify(mMockBinderService).setNotificationsEnabledForPackage(pkg, uid, false);
+    }
+
+    @Test
     public void testHelp() throws Exception {
         doCmd("--help");
     }
