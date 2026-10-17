@@ -36,6 +36,11 @@
     <color name="global_actions_stats_good">#69F0AE</color>
     <color name="global_actions_stats_ok">#FFD740</color>
     <color name="global_actions_stats_bad">#FF5252</color>
+    <!-- The RAM graph's layers: apps, the kernel, the rest of the used RAM, the cache -->
+    <color name="global_actions_stats_ram_apps">#80DEEA</color>
+    <color name="global_actions_stats_ram_kernel">#B388FF</color>
+    <color name="global_actions_stats_ram_other">#FF8A65</color>
+    <color name="global_actions_stats_ram_cache">#69F0AE</color>
 
     <!-- Power menu stats panel labels, the same as the performance overlay's [CHAR LIMIT=5] -->
     <string name="global_actions_stats_cpu">CPU</string>
@@ -47,6 +52,15 @@
     <string name="global_actions_stats_ram">RAM</string>
     <!-- Small note under the RAM graph while compressed memory (zram swap) is on [CHAR LIMIT=12] -->
     <string name="global_actions_stats_zram">\u2713 ZRAM on</string>
+    <!-- Legend under the RAM graph, one word per colored layer, all four on one short line:
+         memory of the apps [CHAR LIMIT=6] -->
+    <string name="global_actions_stats_ram_apps">apps</string>
+    <!-- Legend: memory of the system kernel [CHAR LIMIT=6] -->
+    <string name="global_actions_stats_ram_kernel">kernel</string>
+    <!-- Legend: other used memory, e.g. graphics and drivers [CHAR LIMIT=6] -->
+    <string name="global_actions_stats_ram_other">other</string>
+    <!-- Legend: file cache, memory Android frees when it's needed [CHAR LIMIT=6] -->
+    <string name="global_actions_stats_ram_cache">cache</string>
     <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
     <string name="global_actions_stats_description">System stats of the last 10 minutes</string>
 </resources>

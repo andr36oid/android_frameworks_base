@@ -49,6 +49,15 @@ final class PowerMenuStatsReader {
     int ramUsedMb = -1;
     int ramTotalMb = -1;
     int ramPercent = -1;
+    /**
+     * The RAM graph's layers, stacked, in percent of MemTotal, NaN when unknown: apps (their
+     * own memory and shared memory), then the kernel's own, then the rest of the used RAM
+     * (GPU, drivers, zram's compressed pages) up to {@link #ramPercent}, then the cache on
+     * top. The cache isn't part of ramPercent: Android drops it when memory is needed.
+     */
+    float ramAppsTop = Float.NaN;
+    float ramKernelTop = Float.NaN;
+    float ramCacheTop = Float.NaN;
     /** Swap is set up, which on this console is only the zram device from the fstab. */
     boolean zramOn;
 
@@ -93,6 +102,9 @@ final class PowerMenuStatsReader {
         copy.ramUsedMb = ramUsedMb;
         copy.ramTotalMb = ramTotalMb;
         copy.ramPercent = ramPercent;
+        copy.ramAppsTop = ramAppsTop;
+        copy.ramKernelTop = ramKernelTop;
+        copy.ramCacheTop = ramCacheTop;
         copy.zramOn = zramOn;
         return copy;
     }
@@ -192,20 +204,53 @@ final class PowerMenuStatsReader {
             ramTotalMb = (int) (total / 1024);
             ramUsedMb = (int) ((total - available) / 1024);
             ramPercent = (int) (100 * (total - available) / total);
+            sampleRamLayers(meminfo, total, total - available);
         } else {
             ramTotalMb = ramUsedMb = ramPercent = -1;
+            ramAppsTop = ramKernelTop = ramCacheTop = Float.NaN;
         }
         // /proc/swaps is not readable for SystemUI, meminfo is
         zramOn = meminfoKb(meminfo, "SwapTotal:") > 0;
+    }
+
+    private void sampleRamLayers(String meminfo, long total, long used) {
+        final long anon = meminfoKb(meminfo, "AnonPages:");
+        final long shmem = Math.max(0, meminfoKb(meminfo, "Shmem:"));
+        final long kernel = Math.max(0, meminfoKb(meminfo, "SUnreclaim:"))
+                + Math.max(0, meminfoKb(meminfo, "KernelStack:"))
+                + Math.max(0, meminfoKb(meminfo, "PageTables:"));
+        final long cached = meminfoKb(meminfo, "Cached:");
+        if (anon < 0 || cached < 0) {
+            ramAppsTop = ramKernelTop = ramCacheTop = Float.NaN;
+            return;
+        }
+        // Shared memory is counted in Cached, but can't be dropped like the cache
+        final long cache = Math.max(0, cached - shmem)
+                + Math.max(0, meminfoKb(meminfo, "Buffers:"))
+                + Math.max(0, meminfoKb(meminfo, "SReclaimable:"));
+        // Each layer within the used RAM, the cache within what is left
+        final long apps = Math.min(anon + shmem, used);
+        final long kernelTop = Math.min(apps + kernel, used);
+        final long cacheTop = Math.min(used + cache, total);
+        ramAppsTop = 100f * apps / total;
+        ramKernelTop = 100f * kernelTop / total;
+        ramCacheTop = 100f * cacheTop / total;
     }
 
     static long meminfoKb(String meminfo, String key) {
         if (meminfo == null) {
             return -1;
         }
-        final int start = meminfo.indexOf(key);
-        if (start < 0) {
-            return -1;
+        // At the start of a line, so "Cached:" doesn't find "SwapCached:"
+        final int start;
+        if (meminfo.startsWith(key)) {
+            start = 0;
+        } else {
+            final int newline = meminfo.indexOf("\n" + key);
+            if (newline < 0) {
+                return -1;
+            }
+            start = newline + 1;
         }
         final int end = meminfo.indexOf('\n', start);
         final String line = meminfo.substring(start + key.length(),

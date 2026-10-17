@@ -11,4 +11,8 @@
     <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
     <string name="global_actions_stats_description">Statistik sistem 10 menit terakhir</string>
     <string name="global_actions_stats_zram">\u2713 ZRAM aktif</string>
+    <string name="global_actions_stats_ram_apps">apl</string>
+    <string name="global_actions_stats_ram_kernel">kernel</string>
+    <string name="global_actions_stats_ram_other">lain</string>
+    <string name="global_actions_stats_ram_cache">cache</string>
 </resources>

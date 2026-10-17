@@ -37,6 +37,8 @@ public class PowerMenuSparklineView extends View {
 
     /** Opacity of the fill under the line, out of 255. */
     private static final int FILL_ALPHA = 0x40;
+    /** Opacity of stacked layers, out of 255: solid enough to tell the colors apart. */
+    private static final int LAYER_ALPHA = 0x99;
     /** Opacity of the baseline, out of 255. */
     private static final int BASELINE_ALPHA = 0x4d;
 
@@ -45,6 +47,13 @@ public class PowerMenuSparklineView extends View {
     private final Paint mBaselinePaint = new Paint();
     private final Path mLine = new Path();
     private final Path mFill = new Path();
+
+    // Stacked layers under the line (see setLayers): the top of each layer, lowest first,
+    // and its color. Without layers the area under the line is one see-through fill.
+    private float[][] mLayers;
+    private int[] mLayerColors;
+    private final Paint mLayerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path mLayer = new Path();
 
     private float[] mValues = new float[0];
     private int mCount;
@@ -99,6 +108,18 @@ public class PowerMenuSparklineView extends View {
         invalidate();
     }
 
+    /**
+     * Stacks colored layers under the graph, one graph split by kind: {@code tops[i]} holds
+     * the top of layer i for each point (same order and scale as setValues), lowest layer
+     * first, so each layer fills from the one below it up to its own top. A layer may reach
+     * above the line, like the cache over the used RAM. Call after setValues; null clears.
+     */
+    public void setLayers(float[][] tops, int[] colors) {
+        mLayers = tops;
+        mLayerColors = colors;
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         final float left = getPaddingLeft();
@@ -143,8 +164,61 @@ public class PowerMenuSparklineView extends View {
         if (inRun) {
             closeFill(runStartX, lastX, bottom);
         }
-        canvas.drawPath(mFill, mFillPaint);
+        if (mLayers != null) {
+            drawLayers(canvas, right, bottom, step, height);
+        } else {
+            canvas.drawPath(mFill, mFillPaint);
+        }
         canvas.drawPath(mLine, mLinePaint);
+    }
+
+    /** Each layer as a band from the top of the one below (or the bottom) to its own top. */
+    private void drawLayers(Canvas canvas, float right, float bottom, float step, float height) {
+        for (int layer = 0; layer < mLayers.length; layer++) {
+            final float[] tops = mLayers[layer];
+            final float[] lows = layer == 0 ? null : mLayers[layer - 1];
+            mLayerPaint.setColor((mLayerColors[layer] & 0x00ffffff) | (LAYER_ALPHA << 24));
+            int i = 0;
+            while (i < mCount) {
+                // One run of points where this layer and the one below are known
+                while (i < mCount && !known(tops, lows, i)) {
+                    i++;
+                }
+                final int first = i;
+                while (i < mCount && known(tops, lows, i)) {
+                    i++;
+                }
+                if (i - first < 1) {
+                    continue;
+                }
+                mLayer.rewind();
+                for (int j = first; j < i; j++) {
+                    final float x = right - (mCount - 1 - j) * step;
+                    final float y = yOf(tops[j], bottom, height);
+                    if (j == first) {
+                        mLayer.moveTo(x, y);
+                    } else {
+                        mLayer.lineTo(x, y);
+                    }
+                }
+                for (int j = i - 1; j >= first; j--) {
+                    final float x = right - (mCount - 1 - j) * step;
+                    mLayer.lineTo(x, lows == null ? bottom : yOf(lows[j], bottom, height));
+                }
+                mLayer.close();
+                canvas.drawPath(mLayer, mLayerPaint);
+            }
+        }
+    }
+
+    private boolean known(float[] tops, float[] lows, int i) {
+        return i < tops.length && !Float.isNaN(tops[i])
+                && (lows == null || (i < lows.length && !Float.isNaN(lows[i])));
+    }
+
+    private float yOf(float value, float bottom, float height) {
+        final float clamped = Math.max(mMin, Math.min(mMax, value));
+        return bottom - (clamped - mMin) / (mMax - mMin) * height;
     }
 
     private void closeFill(float startX, float endX, float bottom) {

@@ -12,4 +12,8 @@
     <string name="global_actions_stats_zram">\u2713 ZRAM вкл.</string>
     <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
     <string name="global_actions_stats_description">Статистика системы за последние 10 минут</string>
+    <string name="global_actions_stats_ram_apps">прил.</string>
+    <string name="global_actions_stats_ram_kernel">ядро</string>
+    <string name="global_actions_stats_ram_other">проч.</string>
+    <string name="global_actions_stats_ram_cache">кэш</string>
 </resources>

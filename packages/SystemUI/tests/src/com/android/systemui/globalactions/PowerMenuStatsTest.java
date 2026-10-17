@@ -125,6 +125,31 @@ public class PowerMenuStatsTest {
     }
 
     @Test
+    public void reader_meminfoLayers() {
+        final PowerMenuStatsReader reader = PowerMenuStatsReader.empty();
+        // used 600000: apps 300000 (anon + shmem), kernel 100000, the rest 200000;
+        // cache 250000 - 50000 shmem + 10000 buffers + 40000 reclaimable slab
+        reader.sampleRam("MemTotal: 1000000 kB\nMemAvailable: 400000 kB\nBuffers: 10000 kB\n"
+                + "Cached: 250000 kB\nSwapCached: 99999 kB\nAnonPages: 250000 kB\n"
+                + "Shmem: 50000 kB\nSReclaimable: 40000 kB\nSUnreclaim: 60000 kB\n"
+                + "KernelStack: 15000 kB\nPageTables: 25000 kB\n");
+        assertEquals(60, reader.ramPercent);
+        assertEquals(30f, reader.ramAppsTop, 0.01f);
+        assertEquals(40f, reader.ramKernelTop, 0.01f);
+        assertEquals(85f, reader.ramCacheTop, 0.01f);
+        assertEquals(85f, reader.snapshot().ramCacheTop, 0.01f);
+        // Layers never pass the used RAM, the cache never passes the total
+        reader.sampleRam("MemTotal: 1000000 kB\nMemAvailable: 100000 kB\nCached: 900000 kB\n"
+                + "AnonPages: 950000 kB\n");
+        assertEquals(90f, reader.ramAppsTop, 0.01f);
+        assertEquals(90f, reader.ramKernelTop, 0.01f);
+        assertEquals(100f, reader.ramCacheTop, 0.01f);
+        // Without the detail the graph is one layer again
+        reader.sampleRam("MemTotal: 1000000 kB\nMemAvailable: 400000 kB\n");
+        assertTrue(Float.isNaN(reader.ramAppsTop));
+    }
+
+    @Test
     public void reader_meminfo() {
         final PowerMenuStatsReader reader = PowerMenuStatsReader.empty();
         reader.sampleRam("MemTotal:        1000000 kB\nMemFree:          100000 kB\n"

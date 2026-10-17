@@ -48,7 +48,11 @@ final class PowerMenuStatsSampler {
     static final int SERIES_TEMP = 1;
     static final int SERIES_POWER = 2;
     static final int SERIES_RAM = 3;
-    private static final int SERIES_COUNT = 4;
+    // The RAM graph's other layers, see PowerMenuStatsReader.ramAppsTop
+    static final int SERIES_RAM_APPS = 4;
+    static final int SERIES_RAM_KERNEL = 5;
+    static final int SERIES_RAM_CACHE = 6;
+    private static final int SERIES_COUNT = 7;
 
     static final long HISTORY_INTERVAL_MS = 5000;
     private static final long LIVE_INTERVAL_MS = 1000;
@@ -188,7 +192,8 @@ final class PowerMenuStatsSampler {
         final PowerMenuStatsReader r = mReader;
         r.sample();
         mAverager.add(r.cpuPercent < 0 ? Float.NaN : r.cpuPercent, r.tempC,
-                r.batteryWatts, r.ramPercent < 0 ? Float.NaN : r.ramPercent);
+                r.batteryWatts, r.ramPercent < 0 ? Float.NaN : r.ramPercent,
+                r.ramAppsTop, r.ramKernelTop, r.ramCacheTop);
         final long now = SystemClock.elapsedRealtime();
         // A little slack so a live second landing just before the mark still counts
         if (mLastHistoryTime == 0 || now - mLastHistoryTime >= HISTORY_INTERVAL_MS - 500) {

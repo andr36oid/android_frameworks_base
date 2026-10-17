@@ -10,4 +10,8 @@
     <string name="global_actions_stats_ram">RAM</string>
     <string name="global_actions_stats_description">Statystyki systemu z ostatnich 10 minut</string>
     <string name="global_actions_stats_zram">\u2713 ZRAM wł.</string>
+    <string name="global_actions_stats_ram_apps">apki</string>
+    <string name="global_actions_stats_ram_kernel">jądro</string>
+    <string name="global_actions_stats_ram_other">inne</string>
+    <string name="global_actions_stats_ram_cache">cache</string>
 </resources>

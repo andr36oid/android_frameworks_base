@@ -45,6 +45,10 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
     private Cell mBattery;
     private Cell mRam;
     private TextView mZram;
+    private TextView mRamLegend;
+    // The RAM graph's layers, lowest first: apps, kernel, the rest of the used RAM, cache
+    private final int[] mRamColors;
+    private float[][] mRamLayers = new float[4][PowerMenuStatsSampler.HISTORY_SIZE];
     private final int mLabelColor;
     private final int mValueColor;
     private final int mGoodColor;
@@ -60,6 +64,12 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         mGoodColor = context.getColor(R.color.global_actions_stats_good);
         mOkColor = context.getColor(R.color.global_actions_stats_ok);
         mBadColor = context.getColor(R.color.global_actions_stats_bad);
+        mRamColors = new int[] {
+                context.getColor(R.color.global_actions_stats_ram_apps),
+                context.getColor(R.color.global_actions_stats_ram_kernel),
+                context.getColor(R.color.global_actions_stats_ram_other),
+                context.getColor(R.color.global_actions_stats_ram_cache),
+        };
     }
 
     /** Whether the panel is switched on, see PowerMenuStatsSampler.PROP_ENABLED. */
@@ -80,6 +90,8 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         mBattery = new Cell(findViewById(R.id.global_actions_stats_bat));
         mRam = new Cell(findViewById(R.id.global_actions_stats_ram));
         mZram = findViewById(R.id.global_actions_stats_zram);
+        mRamLegend = findViewById(R.id.global_actions_stats_ram_legend);
+        showRamLegend();
         setFocusable(false);
         setFocusableInTouchMode(false);
         setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
@@ -135,6 +147,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         showGraph(mBattery, history, PowerMenuStatsSampler.SERIES_POWER, capacity,
                 0f, Float.NaN, 2f);
         showGraph(mRam, history, PowerMenuStatsSampler.SERIES_RAM, capacity, 0f, 100f, 0f);
+        showRamLayers(history, capacity);
         showNumbers(s, maxTemp);
     }
 
@@ -148,6 +161,34 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         final float[] scale = PowerMenuStatsFormat.scale(mBuffer, count, min, max, minRange);
         cell.graph.setValues(mBuffer, count, capacity, scale[0], scale[1]);
         return PowerMenuStatsFormat.max(mBuffer, count);
+    }
+
+    /**
+     * One RAM graph split by kind: apps, the kernel and the rest stacked up to the used RAM
+     * (the line, and the number shown), the cache in green above it, not counted as used.
+     */
+    private void showRamLayers(PowerMenuStatsHistory history, int capacity) {
+        if (mRamLayers[0].length < capacity) {
+            mRamLayers = new float[4][capacity];
+        }
+        history.copy(PowerMenuStatsSampler.SERIES_RAM_APPS, mRamLayers[0]);
+        history.copy(PowerMenuStatsSampler.SERIES_RAM_KERNEL, mRamLayers[1]);
+        history.copy(PowerMenuStatsSampler.SERIES_RAM, mRamLayers[2]);
+        history.copy(PowerMenuStatsSampler.SERIES_RAM_CACHE, mRamLayers[3]);
+        mRam.graph.setLayers(mRamLayers, mRamColors);
+    }
+
+    /** "apps kernel other cache", each word in its layer's color */
+    private void showRamLegend() {
+        final int[] words = {
+                R.string.global_actions_stats_ram_apps, R.string.global_actions_stats_ram_kernel,
+                R.string.global_actions_stats_ram_other, R.string.global_actions_stats_ram_cache,
+        };
+        final SpannableStringBuilder out = new SpannableStringBuilder();
+        for (int i = 0; i < words.length; i++) {
+            append(out, (i == 0 ? "" : " ") + getContext().getString(words[i]), mRamColors[i]);
+        }
+        mRamLegend.setText(out);
     }
 
     private void showNumbers(PowerMenuStatsReader s, float maxTemp) {

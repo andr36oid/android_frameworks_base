@@ -11,4 +11,8 @@
     <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
     <string name="global_actions_stats_description">Systemwerte der letzten 10 Minuten</string>
     <string name="global_actions_stats_zram">\u2713 ZRAM an</string>
+    <string name="global_actions_stats_ram_apps">Apps</string>
+    <string name="global_actions_stats_ram_kernel">Kernel</string>
+    <string name="global_actions_stats_ram_other">Rest</string>
+    <string name="global_actions_stats_ram_cache">Cache</string>
 </resources>
