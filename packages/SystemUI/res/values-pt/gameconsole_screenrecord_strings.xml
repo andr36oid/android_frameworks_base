@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="screenrecord_hotkey_starting">A gravação de tela começa em 3 segundos. FN + R2 para a gravação.</string>
-    <string name="screenrecord_hotkey_stopped">Gravação de tela parada. Salvando em Movies.</string>
-    <string name="screenrecord_hotkey_cancelled">Gravação de tela cancelada</string>
+    <string name="screenrecord_hotkey_starting">A gravação do ecrã começa dentro de 3 segundos. FN + R2 para a gravação.</string>
+    <string name="screenrecord_hotkey_stopped">Gravação do ecrã parada. A guardar em Movies.</string>
+    <string name="screenrecord_hotkey_cancelled">Gravação do ecrã cancelada</string>
 </resources>

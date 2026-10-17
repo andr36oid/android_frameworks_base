@@ -18,5 +18,5 @@
     <!-- Hint above the unused tiles in the quick settings editor, for game controller buttons -->
     <string name="qs_edit_controller_hint">A: taşı veya ekle  ·  X: kaldır  ·  B: bitti</string>
     <!-- Same hint while a tile is picked up to move it -->
-    <string name="qs_edit_controller_move_hint">Olması gereken yere git ve A tuşuna bas  ·  B: iptal</string>
+    <string name="qs_edit_controller_move_hint">İstediğiniz yere gidip A tuşuna basın  ·  B: iptal</string>
 </resources>

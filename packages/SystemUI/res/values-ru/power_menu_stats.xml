@@ -8,6 +8,8 @@
     <string name="global_actions_stats_bat">БАТ</string>
     <!-- Memory [CHAR LIMIT=5] -->
     <string name="global_actions_stats_ram">RAM</string>
+    <!-- Small note under the RAM graph while compressed memory (zram swap) is on [CHAR LIMIT=12] -->
+    <string name="global_actions_stats_zram">\u2713 ZRAM вкл.</string>
     <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
     <string name="global_actions_stats_description">Статистика системы за последние 10 минут</string>
 </resources>

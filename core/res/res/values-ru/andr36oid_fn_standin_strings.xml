@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="fn_help_footer_standin">FN = <xliff:g id="button">%1$s</xliff:g>. Отпустите — закрыть, нажмите коротко — главный экран.</string>
+    <string name="fn_help_footer_vol_both">Открыто одновременным нажатием Vol+ и Vol−. B — закрыть.</string>
+    <string name="fn_help_extra_button">Дополнительная кнопка <xliff:g id="number">%1$d</xliff:g></string>
+</resources>

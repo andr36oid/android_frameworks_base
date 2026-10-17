@@ -16,5 +16,5 @@
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="andr36oid_repair_title">正在修复 %1$s（%2$s）…</string>
-    <string name="andr36oid_repair_message">此卡未被安全移除。修复可能需要几分钟，完成前主机会变慢。下次取出卡前，请先关机或弹出此卡。</string>
+    <string name="andr36oid_repair_message">此卡未被安全移除。修复可能需要几分钟，完成前掌机会变慢。下次取出卡前，请先关机或弹出此卡。</string>
 </resources>

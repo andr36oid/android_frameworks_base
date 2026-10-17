@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="andr36oid_card_held">Обнаружено: <xliff:g id="name" example="EASYROMS">%1$s</xliff:g>, подключение после начальной настройки…</string>
+    <string name="andr36oid_card_held">Найден <xliff:g id="name" example="EASYROMS">%1$s</xliff:g>, подключится после начальной настройки…</string>
     <string name="andr36oid_card_held_sd_card">SD-карта</string>
-    <string name="andr36oid_cards_released">Начальная настройка завершена, подключается дополнительное хранилище</string>
+    <string name="andr36oid_cards_released">Начальная настройка завершена, подключаем дополнительное хранилище</string>
 </resources>

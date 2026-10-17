@@ -10,4 +10,5 @@
     <string name="global_actions_stats_ram">RAM</string>
     <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
     <string name="global_actions_stats_description">过去 10 分钟的系统状态</string>
+    <string name="global_actions_stats_zram">\u2713 ZRAM 已启用</string>
 </resources>

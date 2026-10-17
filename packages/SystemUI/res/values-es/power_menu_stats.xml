@@ -10,4 +10,5 @@
     <string name="global_actions_stats_ram">RAM</string>
     <!-- Spoken description of the power menu stats panel [CHAR LIMIT=NONE] -->
     <string name="global_actions_stats_description">Estadísticas del sistema de los últimos 10 minutos</string>
+    <string name="global_actions_stats_zram">\u2713 ZRAM act.</string>
 </resources>

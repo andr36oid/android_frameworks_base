@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="fn_help_title">FN-Shortcuts</string>
+    <string name="fn_help_title">FN-Kurzbefehle</string>
     <string name="fn_help_footer">Lass FN los, um zu schließen. FN allein führt zum Startbildschirm.</string>
     <string name="fn_help_brightness">Bildschirm heller / dunkler</string>
     <string name="fn_help_screenshot">Screenshot</string>

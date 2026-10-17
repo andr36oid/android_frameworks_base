@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="fn_help_footer_standin">FN = <xliff:g id="button">%1$s</xliff:g>. Loslassen: schließen. Kurz drücken: Startbildschirm.</string>
+    <string name="fn_help_footer_vol_both">Mit Vol+ und Vol− gleichzeitig geöffnet. B schließt.</string>
+    <string name="fn_help_extra_button">Zusatztaste <xliff:g id="number">%1$d</xliff:g></string>
+</resources>

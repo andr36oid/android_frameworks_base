@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <!-- Toast when Bluetooth is turned on without a USB Bluetooth adapter plugged in -->
-    <string name="bluetooth_no_usb_controller">Conecte um adaptador Bluetooth USB para usar o Bluetooth</string>
+    <string name="bluetooth_no_usb_controller">Ligue um adaptador Bluetooth USB para usar o Bluetooth</string>
 </resources>

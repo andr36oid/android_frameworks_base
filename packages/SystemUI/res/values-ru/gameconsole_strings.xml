@@ -16,9 +16,9 @@
         <item quantity="other">Закрыто <xliff:g id="count" example="3">%d</xliff:g> фонового приложения</item>
     </plurals>
     <!-- Toast after pressing close background apps in the power menu with nothing to close [CHAR LIMIT=NONE] -->
-    <string name="global_action_close_apps_none">Нет фоновых приложений</string>
+    <string name="global_action_close_apps_none">Закрывать нечего: фоновых приложений нет</string>
     <!-- Small button at the bottom of the power menu that force stops the app on screen [CHAR LIMIT=NONE] -->
-    <string name="global_action_kill_app">Принудительно закрыть (<xliff:g id="app" example="RetroArch">%1$s</xliff:g>)</string>
+    <string name="global_action_kill_app">Принудительно закрыть <xliff:g id="app" example="RetroArch">%1$s</xliff:g></string>
     <!-- Toast after killing the app on screen from the power menu [CHAR LIMIT=NONE] -->
     <string name="global_action_kill_app_done">Приложение <xliff:g id="app" example="RetroArch">%1$s</xliff:g> закрыто</string>
     <!-- Small print below the power menu's Settings button, holding it opens the menu customization [CHAR LIMIT=15] -->
