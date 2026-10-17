@@ -873,21 +873,9 @@ public class GlobalScreenshot implements ViewTreeObserver.OnComputeInternalInset
                 mScreenshotHandler.obtainMessage(MESSAGE_CORNER_TIMEOUT),
                 timeoutMs);
 
-        if (imageData.uri != null) {
-            mScreenshotHandler.post(() -> {
-                if (mScreenshotAnimation != null && mScreenshotAnimation.isRunning()) {
-                    mScreenshotAnimation.addListener(new AnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(Animator animation) {
-                            super.onAnimationEnd(animation);
-                            createScreenshotActionsShadeAnimation(imageData).start();
-                        }
-                    });
-                } else {
-                    createScreenshotActionsShadeAnimation(imageData).start();
-                }
-            });
-        }
+        // andr36oid: no Share/Edit row and no shade under it. The chips can't be reached
+        // with the buttons and there is nothing to share to or edit with on the console;
+        // only the preview shows, until the corner timeout takes it away.
     }
 
     /**
@@ -914,8 +902,9 @@ public class GlobalScreenshot implements ViewTreeObserver.OnComputeInternalInset
         mScreenshotAnimatedView.setScaleX(currentScale);
         mScreenshotAnimatedView.setScaleY(currentScale);
 
+        // andr36oid: no X on the preview, it can't be pressed with the buttons
         mDismissButton.setAlpha(0);
-        mDismissButton.setVisibility(View.VISIBLE);
+        mDismissButton.setVisibility(View.GONE);
 
         AnimatorSet dropInAnimation = new AnimatorSet();
         ValueAnimator flashInAnimator = ValueAnimator.ofFloat(0, 1);
