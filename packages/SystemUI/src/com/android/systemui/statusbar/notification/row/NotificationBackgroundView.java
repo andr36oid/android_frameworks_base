@@ -19,6 +19,9 @@ package com.android.systemui.statusbar.notification.row;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.drawable.Drawable;
@@ -200,12 +203,33 @@ public class NotificationBackgroundView extends View {
 
     public void setState(int[] drawableState) {
         if (mBackground != null && mBackground.isStateful()) {
+            // The focus is shown as an outline (drawFocusRing), not as a lighter fill
+            drawableState = ArrayUtils.removeInt(drawableState,
+                    com.android.internal.R.attr.state_focused);
             if (!mIsPressedAllowed) {
                 drawableState = ArrayUtils.removeInt(drawableState,
                         com.android.internal.R.attr.state_pressed);
             }
             mBackground.setState(drawableState);
         }
+    }
+
+    /** Draws an outline of the notification card in the given colour, for D-pad focus. */
+    void drawFocusRing(Canvas canvas, int color, float strokeWidth) {
+        final int bottom = mActualHeight - (mBottomIsRounded && mBottomAmountClips
+                && !mLastInSection ? mClipBottomAmount : 0);
+        final float half = strokeWidth / 2f;
+        final RectF r = new RectF(half, mBackgroundTop + half, getWidth() - half, bottom - half);
+        if (r.height() <= strokeWidth) {
+            return;
+        }
+        final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(strokeWidth);
+        paint.setColor(color);
+        final Path path = new Path();
+        path.addRoundRect(r, mCornerRadii, Path.Direction.CW);
+        canvas.drawPath(path, paint);
     }
 
     public void setRippleColor(int color) {

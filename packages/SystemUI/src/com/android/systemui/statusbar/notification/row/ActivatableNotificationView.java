@@ -162,6 +162,9 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
         mSlowOutLinearInInterpolator = new PathInterpolator(0.8f, 0.0f, 1.0f, 1.0f);
         setClipChildren(false);
         setClipToPadding(false);
+        // D-pad focus is an accent outline drawn in dispatchDraw, not the default
+        // lighter overlay that makes the text unreadable
+        setDefaultFocusHighlightEnabled(false);
         updateColors();
         initDimens();
     }
@@ -911,6 +914,13 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
         }
     }
 
+    @Override
+    protected void onFocusChanged(boolean gainFocus, int direction,
+            android.graphics.Rect previouslyFocusedRect) {
+        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
+        invalidate();
+    }
+
     public boolean isDrawingAppearAnimation() {
         return mDrawingAppearAnimation;
     }
@@ -922,6 +932,12 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
             canvas.translate(0, mAppearAnimationTranslation);
         }
         super.dispatchDraw(canvas);
+        if (isFocused() && mBackgroundNormal != null) {
+            mBackgroundNormal.drawFocusRing(canvas,
+                    com.android.settingslib.Utils.getColorAttrDefaultColor(mContext,
+                            android.R.attr.colorAccent),
+                    2 * getResources().getDisplayMetrics().density);
+        }
         if (mDrawingAppearAnimation) {
             canvas.restore();
         }
