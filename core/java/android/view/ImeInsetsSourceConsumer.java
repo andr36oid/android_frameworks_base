@@ -93,8 +93,18 @@ public final class ImeInsetsSourceConsumer extends InsetsSourceConsumer {
     }
 
     @Override
-    void hide(boolean animationFinished, @AnimationType int animationType) {
+    public void hide() {
         super.hide();
+        // A show that waited for control is over once the IME is hidden. Kept, it turned every
+        // later control change (each relayout of the window) into a new show request, so the
+        // keyboard came straight back after Back or Done for as long as the window had focus.
+        // Android 12 resets it here too.
+        mIsRequestedVisibleAwaitingControl = false;
+    }
+
+    @Override
+    void hide(boolean animationFinished, @AnimationType int animationType) {
+        hide();
 
         if (animationFinished) {
             // remove IME surface as IME has finished hide animation.
