@@ -2129,6 +2129,9 @@ class StorageManagerService extends IStorageManager.Stub
                 mIAppOpsService.startWatchingMode(OP_REQUEST_INSTALL_PACKAGES, null,
                         mAppOpsCallback);
                 mIAppOpsService.startWatchingMode(OP_LEGACY_STORAGE, null, mAppOpsCallback);
+                // andr36oid: All files access sets the storage view under sdcardfs too
+                mIAppOpsService.startWatchingMode(OP_MANAGE_EXTERNAL_STORAGE, null,
+                        mAppOpsCallback);
             } catch (RemoteException e) {
             }
         }
@@ -4514,6 +4517,21 @@ class StorageManagerService extends IStorageManager.Stub
                 return Zygote.MOUNT_EXTERNAL_INSTALLER;
             }
 
+            // andr36oid: storage goes through sdcardfs, where Android 11 only knows the old
+            // rules: without the legacy storage flag (ignored for apps made for Android 11) an
+            // app saw nothing of /storage, and "All files access" counted for nothing, so VLC
+            // and file managers found the internal storage empty. Under sdcardfs, All files
+            // access means read and write, and the storage permissions count without the flag.
+            if (!mIsFuseEnabled) {
+                final boolean hasManage = mIAppOpsService.checkOperation(
+                        OP_MANAGE_EXTERNAL_STORAGE, uid, packageName) == MODE_ALLOWED;
+                if (hasManage || hasWrite) {
+                    return Zygote.MOUNT_EXTERNAL_WRITE;
+                } else if (hasRead) {
+                    return Zygote.MOUNT_EXTERNAL_READ;
+                }
+            }
+
             // Otherwise we're willing to give out sandboxed or non-sandboxed if
             // they hold the runtime permission
             boolean hasLegacy = mIAppOpsService.checkOperation(OP_LEGACY_STORAGE,
@@ -4964,9 +4982,10 @@ class StorageManagerService extends IStorageManager.Stub
                     }
                 }
 
-                if (mode == MODE_ALLOWED && (code == OP_READ_EXTERNAL_STORAGE
+                if ((mode == MODE_ALLOWED && (code == OP_READ_EXTERNAL_STORAGE
                                 || code == OP_WRITE_EXTERNAL_STORAGE
-                                || code == OP_REQUEST_INSTALL_PACKAGES)) {
+                                || code == OP_REQUEST_INSTALL_PACKAGES))
+                        || code == OP_MANAGE_EXTERNAL_STORAGE) {
                     final UserManagerInternal userManagerInternal =
                             LocalServices.getService(UserManagerInternal.class);
                     if (userManagerInternal.isUserInitialized(UserHandle.getUserId(uid))) {
