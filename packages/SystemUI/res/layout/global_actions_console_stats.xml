@@ -34,44 +34,19 @@
     android:contentDescription="@string/global_actions_stats_description"
     android:visibility="gone">
 
-    <!-- CPU, temperature and battery side by side, the SD card's busy share under them -->
+    <!-- CPU with the SD card's busy share under it, one column wide like the others -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_weight="3"
+        android:layout_weight="1"
         android:orientation="vertical"
         android:focusable="false">
 
-        <LinearLayout
+        <include
+            android:id="@+id/global_actions_stats_cpu"
+            layout="@layout/global_actions_console_stats_cell"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:baselineAligned="false"
-            android:focusable="false">
-
-            <include
-                android:id="@+id/global_actions_stats_cpu"
-                layout="@layout/global_actions_console_stats_cell"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1" />
-
-            <include
-                android:id="@+id/global_actions_stats_temp"
-                layout="@layout/global_actions_console_stats_cell"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="@dimen/global_actions_stats_cell_gap" />
-
-            <include
-                android:id="@+id/global_actions_stats_bat"
-                layout="@layout/global_actions_console_stats_cell"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="@dimen/global_actions_stats_cell_gap" />
-        </LinearLayout>
+            android:layout_height="wrap_content" />
 
         <include
             android:id="@+id/global_actions_stats_storage"
@@ -80,6 +55,22 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/global_actions_stats_graph_gap" />
     </LinearLayout>
+
+    <include
+        android:id="@+id/global_actions_stats_temp"
+        layout="@layout/global_actions_console_stats_cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="@dimen/global_actions_stats_cell_gap" />
+
+    <include
+        android:id="@+id/global_actions_stats_bat"
+        layout="@layout/global_actions_console_stats_cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="@dimen/global_actions_stats_cell_gap" />
 
     <!-- RAM, with a legend for the graph's colors and a small "ZRAM on" note under it -->
     <LinearLayout
