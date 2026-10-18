@@ -62,6 +62,10 @@ final class PowerMenuStatsReader {
     float ramCacheTop = Float.NaN;
     /** How busy the SD card was since the last sample, 0..100, -1 if unknown. */
     int storagePercent = -1;
+    /** What the SD card read and wrote together since the last sample, bytes/s; -1 unknown. */
+    long storageBytesPerSec = -1;
+    /** 1 if the card mostly read since the last sample, -1 if it mostly wrote, 0 neither. */
+    int storageDirection;
     /** Swap is set up, which on this console is only the zram device from the fstab. */
     boolean zramOn;
 
@@ -74,6 +78,8 @@ final class PowerMenuStatsReader {
     private long mLastCpuTotal;
     private long mLastIoTicks = -1;
     private long mLastIoTime;
+    private long mLastIoSectors = -1;
+    private long mLastIoRead;
 
     PowerMenuStatsReader() {
         this("");
@@ -112,6 +118,8 @@ final class PowerMenuStatsReader {
         copy.ramKernelTop = ramKernelTop;
         copy.ramCacheTop = ramCacheTop;
         copy.storagePercent = storagePercent;
+        copy.storageBytesPerSec = storageBytesPerSec;
+        copy.storageDirection = storageDirection;
         copy.zramOn = zramOn;
         return copy;
     }
@@ -131,6 +139,9 @@ final class PowerMenuStatsReader {
         cpuPercent = -1;
         mLastIoTicks = -1;
         storagePercent = -1;
+        mLastIoSectors = -1;
+        storageBytesPerSec = -1;
+        storageDirection = 0;
     }
 
     void sample() {
@@ -150,30 +161,41 @@ final class PowerMenuStatsReader {
      * field 10 of its stat file (io_ticks, milliseconds spent doing I/O) over the wall clock.
      */
     void sampleStorage(String stat, long nowMs) {
-        if (stat == null) {
-            storagePercent = -1;
-            mLastIoTicks = -1;
-            return;
-        }
-        final String[] fields = stat.trim().split("\\s+");
-        final long ticks;
+        final String[] fields = stat == null ? new String[0] : stat.trim().split("\\s+");
+        long ticks = -1;
+        long sectors = -1;
+        long read = 0;
         try {
-            ticks = fields.length > 9 ? Long.parseLong(fields[9]) : -1;
+            if (fields.length > 9) {
+                ticks = Long.parseLong(fields[9]);
+                // sectors read (field 3) and written (field 7), 512 bytes each
+                read = Long.parseLong(fields[2]);
+                sectors = read + Long.parseLong(fields[6]);
+            }
         } catch (NumberFormatException e) {
+            ticks = -1;
+        }
+        if (ticks < 0 || sectors < 0) {
             storagePercent = -1;
+            storageBytesPerSec = -1;
+            storageDirection = 0;
             mLastIoTicks = -1;
+            mLastIoSectors = -1;
             return;
         }
-        if (ticks < 0) {
-            storagePercent = -1;
-            mLastIoTicks = -1;
-            return;
-        }
-        if (mLastIoTicks >= 0 && nowMs > mLastIoTime && ticks >= mLastIoTicks) {
+        if (mLastIoTicks >= 0 && nowMs > mLastIoTime && ticks >= mLastIoTicks
+                && sectors >= mLastIoSectors) {
+            final long ms = nowMs - mLastIoTime;
             storagePercent = (int) Math.max(0, Math.min(100,
-                    100 * (ticks - mLastIoTicks) / (nowMs - mLastIoTime)));
+                    100 * (ticks - mLastIoTicks) / ms));
+            storageBytesPerSec = (sectors - mLastIoSectors) * 512 * 1000 / ms;
+            final long readNow = read - mLastIoRead;
+            final long writtenNow = sectors - mLastIoSectors - readNow;
+            storageDirection = readNow > writtenNow ? 1 : writtenNow > readNow ? -1 : 0;
         }
+        mLastIoRead = read;
         mLastIoTicks = ticks;
+        mLastIoSectors = sectors;
         mLastIoTime = nowMs;
     }
 

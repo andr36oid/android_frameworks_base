@@ -142,6 +142,30 @@ public class PowerMenuStatsTest {
     }
 
     @Test
+    public void reader_storageSpeed() {
+        final PowerMenuStatsReader reader = PowerMenuStatsReader.empty();
+        reader.sampleStorage("100 0 1000 50 20 0 1000 30 0 10 0 0\n", 10000);
+        assertEquals(-1, reader.storageBytesPerSec);
+        // 2 s later: 4000 sectors read and 2640 written, 3.4 MB in all
+        reader.sampleStorage("100 0 5000 50 20 0 3640 30 0 20 0 0\n", 12000);
+        assertEquals(1699840, reader.storageBytesPerSec);
+        assertEquals(1, reader.storageDirection);
+        reader.sampleStorage("100 0 5000 50 20 0 9000 30 0 30 0 0\n", 13000);
+        assertEquals(-1, reader.storageDirection);
+        assertEquals(" \u2191", PowerMenuStatsFormat.storageArrow(1));
+        assertEquals(" \u2193", PowerMenuStatsFormat.storageArrow(-1));
+        assertEquals("", PowerMenuStatsFormat.storageArrow(0));
+        assertEquals(" 1.7MB/s", PowerMenuStatsFormat.storageExtra(1699840));
+        assertEquals(" 512kB/s", PowerMenuStatsFormat.storageExtra(512000));
+        assertEquals(" 23MB/s", PowerMenuStatsFormat.storageExtra(23400000));
+        assertEquals(" 0kB/s", PowerMenuStatsFormat.storageExtra(0));
+        assertEquals("", PowerMenuStatsFormat.storageExtra(-1));
+        reader.sampleStorage(null, 14000);
+        assertEquals(-1, reader.storageBytesPerSec);
+        assertEquals(0, reader.storageDirection);
+    }
+
+    @Test
     public void reader_meminfoLayers() {
         final PowerMenuStatsReader reader = PowerMenuStatsReader.empty();
         // used 600000: apps 300000 (anon + shmem), kernel 100000, the rest 200000;

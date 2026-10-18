@@ -94,6 +94,30 @@ final class PowerMenuStatsFormat {
         return percent < 0 ? "  --" : pad(percent + "%", 4);
     }
 
+    /**
+     * " 3.4MB/s" or " 512kB/s": what the card read and wrote together, empty if unknown.
+     * Decimal units, like card makers use.
+     */
+    static String storageExtra(long bytesPerSec) {
+        if (bytesPerSec < 0) return "";
+        if (bytesPerSec >= 1000000) {
+            final long tenths = (bytesPerSec + 50000) / 100000;
+            return tenths >= 100 ? " " + tenths / 10 + "MB/s"
+                    : " " + tenths / 10 + "." + tenths % 10 + "MB/s";
+        }
+        return " " + (bytesPerSec + 500) / 1000 + "kB/s";
+    }
+
+    /** " ↑" mostly reading, " ↓" mostly writing, empty for neither. */
+    static String storageArrow(int direction) {
+        return direction > 0 ? " \u2191" : direction < 0 ? " \u2193" : "";
+    }
+
+    /** Green reading, red writing. */
+    static int storageArrowLevel(int direction) {
+        return direction > 0 ? LEVEL_GOOD : LEVEL_BAD;
+    }
+
     /** Amber from 90% busy, like the RAM. */
     static int storageLevel(int percent) {
         return percent >= 90 ? LEVEL_OK : LEVEL_NORMAL;

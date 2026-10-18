@@ -214,10 +214,18 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 PowerMenuStatsFormat.ramValue(s.ramPercent),
                 PowerMenuStatsFormat.ramLevel(s.ramPercent),
                 PowerMenuStatsFormat.ramExtra(s.ramUsedMb, s.ramTotalMb));
-        // SD   12% (how busy the card was)
+        // SD   12% 3.4MB/s (how busy the card was, what it read and wrote together)
         show(mStorage, R.string.global_actions_stats_storage,
                 PowerMenuStatsFormat.storageValue(s.storagePercent),
-                PowerMenuStatsFormat.storageLevel(s.storagePercent), "");
+                PowerMenuStatsFormat.storageLevel(s.storagePercent),
+                PowerMenuStatsFormat.storageExtra(s.storageBytesPerSec));
+        // ↑ green while it mostly reads, ↓ red while it mostly writes
+        final String arrow = PowerMenuStatsFormat.storageArrow(s.storageDirection);
+        if (!arrow.isEmpty() && s.storageBytesPerSec > 0) {
+            final SpannableStringBuilder sd = new SpannableStringBuilder(mStorage.text.getText());
+            append(sd, arrow, colorOf(PowerMenuStatsFormat.storageArrowLevel(s.storageDirection)));
+            mStorage.text.setText(sd);
+        }
         // ✓ ZRAM on, under the RAM graph; hidden (keeping its space) while there is no swap
         mZram.setVisibility(s.zramOn ? VISIBLE : INVISIBLE);
     }
