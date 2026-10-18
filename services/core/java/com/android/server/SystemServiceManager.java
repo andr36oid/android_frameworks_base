@@ -199,10 +199,10 @@ public class SystemServiceManager {
 
         Slog.i(TAG, "Starting phase " + mCurrentPhase);
         // andr36oid: the boot animation's progress bar and details line follow the phases
-        // (frameworks/base/cmds/bootanimation/BootLogScreen.cpp), only while one is on
-        if (phase < SystemService.PHASE_BOOT_COMPLETED
-                && (SystemProperties.getBoolean("persist.andr36oid.bootprogress", false)
-                || SystemProperties.getBoolean("persist.andr36oid.bootdetails", false))) {
+        // (frameworks/base/cmds/bootanimation/BootLogScreen.cpp). Always, a handful of
+        // property writes per start: the first start shows the bar before anyone could
+        // switch it on.
+        if (phase < SystemService.PHASE_BOOT_COMPLETED) {
             SystemProperties.set("sys.andr36oid.boot_phase", Integer.toString(phase));
         }
         try {

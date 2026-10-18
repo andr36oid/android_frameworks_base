@@ -509,6 +509,12 @@ void BootAnimation::drawBootNotes(int x, int y, int w, int h) {
         if (!mShuttingDown) {
             mStageBar = access(kStageBarMarker, F_OK) == 0;
             mStageText = access(kStageTextMarker, F_OK) == 0;
+            // The first start (the card being resized) always shows the bar: it takes two
+            // minutes, and nobody could have switched it on yet
+            char resizing[PROPERTY_VALUE_MAX];
+            property_get(kResizeProp, resizing, "0");
+            mFirstBoot = strcmp(resizing, "1") == 0;
+            if (mFirstBoot) mStageBar = true;
             if (mStageBar || mStageText) {
                 ALOGI("boot stages: bar %d, details %d", mStageBar, mStageText);
             }
@@ -527,6 +533,18 @@ void BootAnimation::drawBootNotes(int x, int y, int w, int h) {
     const int fontSize = std::max(12, h / 24);
     if (text != nullptr) drawNoticeLine(text, x, top, w, fontSize);
     if (mStageBar) drawProgressBar(x, top + fontSize * 2, w, now);
+}
+
+// A stage's usual length. The first start adds the resize and the format to the first
+// stage (about 60 s), the first dexopt to the package scan (about 17 s) and the setup
+// wizard's start to the last one, as measured on a G80C.
+float BootAnimation::stageSeconds(int i) const {
+    const float s = kStages[i].seconds;
+    if (!mFirstBoot) return s;
+    if (i == 0) return s + 60.0f;
+    if (i == 4) return s + 17.0f;
+    if (i == kStageCount - 1) return s + 5.0f;
+    return s;
 }
 
 // The furthest stage whose signal is there; skipped ones don't matter, it never goes back
@@ -553,12 +571,12 @@ void BootAnimation::updateBootStage(nsecs_t now) {
 void BootAnimation::drawProgressBar(int x, int top, int w, nsecs_t now) {
     float total = 0, before = 0;
     for (int i = 0; i < kStageCount; i++) {
-        if (i < mStage) before += kStages[i].seconds;
-        total += kStages[i].seconds;
+        if (i < mStage) before += stageSeconds(i);
+        total += stageSeconds(i);
     }
     float p = 1.0f;
     if (!exitPending()) {
-        const float span = kStages[std::max(mStage, 0)].seconds;
+        const float span = stageSeconds(std::max(mStage, 0));
         const float t = (now - mStageStart) / 1e9f;
         p = (before + span * 0.9f * (1.0f - expf(-t / span))) / total;
     }

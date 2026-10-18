@@ -183,6 +183,7 @@ private:
     // the first start, and, when switched on in Settings, the boot stage and a progress bar
     void drawBootNotes(int x, int y, int w, int h);
     void drawNoticeLine(const char* text, int x, int top, int w, int fontSize);
+    float stageSeconds(int i) const;
     void updateBootStage(nsecs_t now);
     void drawProgressBar(int x, int top, int w, nsecs_t now);
     void closeLogKeys();
@@ -217,6 +218,7 @@ private:
     bool        mStagesChecked = false;
     bool        mStageBar = false;
     bool        mStageText = false;
+    bool        mFirstBoot = false;
     int         mStage = -1;
     nsecs_t     mStageStart = 0;
     nsecs_t     mLastStageCheck = 0;
