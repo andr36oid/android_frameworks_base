@@ -1202,7 +1202,7 @@ bool BootAnimation::playAnimation(const Animation& animation) {
                 // which is equivalent to mHeight - (yc + frame.trimHeight)
                 glDrawTexiOES(xc, mHeight - (yc + frame.trimHeight),
                               0, frame.trimWidth, frame.trimHeight);
-                drawResizeNotice(animationX, animationY, animation.width, animation.height);
+                drawBootNotes(animationX, animationY, animation.width, animation.height);
                 if (mClockEnabled && mTimeIsAccurate && validClock(part)) {
                     drawClock(animation.clockFont, part.clockPosX, part.clockPosY);
                 }

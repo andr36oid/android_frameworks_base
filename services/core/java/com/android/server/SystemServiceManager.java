@@ -22,6 +22,7 @@ import android.content.Context;
 import android.content.pm.UserInfo;
 import android.os.Environment;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManagerInternal;
@@ -197,6 +198,13 @@ public class SystemServiceManager {
         mCurrentPhase = phase;
 
         Slog.i(TAG, "Starting phase " + mCurrentPhase);
+        // andr36oid: the boot animation's progress bar and details line follow the phases
+        // (frameworks/base/cmds/bootanimation/BootLogScreen.cpp), only while one is on
+        if (phase < SystemService.PHASE_BOOT_COMPLETED
+                && (SystemProperties.getBoolean("persist.andr36oid.bootprogress", false)
+                || SystemProperties.getBoolean("persist.andr36oid.bootdetails", false))) {
+            SystemProperties.set("sys.andr36oid.boot_phase", Integer.toString(phase));
+        }
         try {
             t.traceBegin("OnBootPhase_" + phase);
             final int serviceLen = mServices.size();

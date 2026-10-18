@@ -179,8 +179,12 @@ private:
     // andr36oid: the boot log on screen (BootLogScreen.cpp)
     bool logRequested();
     bool logScreen();
-    // andr36oid: "Resizing SD card ..." under the logo on the first start (BootLogScreen.cpp)
-    void drawResizeNotice(int x, int y, int w, int h);
+    // andr36oid: the lines under the logo (BootLogScreen.cpp): "Resizing SD card ..." on
+    // the first start, and, when switched on in Settings, the boot stage and a progress bar
+    void drawBootNotes(int x, int y, int w, int h);
+    void drawNoticeLine(const char* text, int x, int top, int w, int fontSize);
+    void updateBootStage(nsecs_t now);
+    void drawProgressBar(int x, int top, int w, nsecs_t now);
     void closeLogKeys();
 
     void handleViewport(nsecs_t timestep);
@@ -210,6 +214,13 @@ private:
     GLuint      mResizeTexture = 0;
     int         mResizeHeight = 0;
     const char* mResizeShown = nullptr;
+    bool        mStagesChecked = false;
+    bool        mStageBar = false;
+    bool        mStageText = false;
+    int         mStage = -1;
+    nsecs_t     mStageStart = 0;
+    nsecs_t     mLastStageCheck = 0;
+    float       mProgress = 0.0f;
     bool        mKeysOpened = false;
     std::vector<int> mKeyFds;
     nsecs_t     mLastKeyCheck = 0;

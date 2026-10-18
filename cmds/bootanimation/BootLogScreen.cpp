@@ -31,6 +31,7 @@
 #include <linux/input.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/klog.h>
@@ -85,6 +86,48 @@ constexpr const char* kResizeText = "Resizing SD card ...";      // sys.andr36oi
 constexpr const char* kReclaimText = "Cleaning up first boot partitions ..."; // =2
 constexpr const char* kResizeFontFile = "/system/fonts/Roboto-Regular.ttf";
 constexpr SkColor kResizeColor = SkColorSetRGB(0x8c, 0x8c, 0x8c);
+
+// The boot stages for the progress bar and the details line (drawBootNotes). A stage starts
+// when its property is set (to value, or to a number of at least minimum; else to anything).
+// seconds: how long it usually takes on an R36S, from a measured start; the bar shares
+// follow these. Stage 0 starts with the animation, at late-fs.
+constexpr const char* kStageBarMarker = "/cache/andr36oid/bootprogress";
+constexpr const char* kStageTextMarker = "/cache/andr36oid/bootdetails";
+constexpr nsecs_t kStageCheckInterval = ms2ns(250);
+
+struct BootStage {
+    const char* prop;
+    const char* value;
+    int minimum;
+    const char* text;
+    float seconds;
+};
+
+constexpr BootStage kStages[] = {
+    // fsck and mount of userdata (init.rk30board.rc, late-fs)
+    {nullptr, nullptr, 0, "Mounting partitions ...", 1.0f},
+    // init sets it right after mounting userdata; post-fs-data follows
+    {"ro.crypto.state", nullptr, 0, "Preparing data ...", 2.0f},
+    // zygote loads the framework classes
+    {"init.svc.zygote", "running", 0, "Starting Android ...", 12.0f},
+    // SystemServer.run()
+    {"sys.system_server.start_count", nullptr, 0, "Starting system services ...", 1.5f},
+    // SystemServiceManager, PHASE_WAIT_FOR_DEFAULT_DISPLAY: the package manager scans next
+    {"sys.andr36oid.boot_phase", nullptr, 100, "Loading apps ...", 9.0f},
+    // WindowManager's display is ready (ProcessList.updateOomLevels)
+    {"sys.lmk.minfree_levels", nullptr, 0, "Starting the display and services ...", 5.0f},
+    // PHASE_ACTIVITY_MANAGER_READY: SystemUI and the home screen
+    {"sys.andr36oid.boot_phase", nullptr, 550, "Starting apps ...", 8.0f},
+};
+constexpr int kStageCount = sizeof(kStages) / sizeof(kStages[0]);
+
+bool stageReached(const BootStage& stage) {
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get(stage.prop, value, "") <= 0) return false;
+    if (stage.value != nullptr) return strcmp(value, stage.value) == 0;
+    if (stage.minimum > 0) return atoi(value) >= stage.minimum;
+    return true;
+}
 
 enum class Level { kInfo, kWarn, kError };
 
@@ -447,19 +490,102 @@ bool BootAnimation::logScreen() {
     return false;
 }
 
-// andr36oid: "Resizing SD card ..." in grey under the logo while the first start sets up
-// the card. andr36oid-firstresize.sh sets sys.andr36oid.resizing=1 and init clears it at
+// andr36oid: the lines under the logo. The logo fills the middle third of the animation
+// (gen-bootanimation.sh), the text goes just below it, the progress bar under the text.
+//
+// "Resizing SD card ..." in grey while the first start sets up the card:
+// andr36oid-firstresize.sh sets sys.andr36oid.resizing=1 and init clears it at
 // post-fs-data, after Android has formatted userdata. 2: "Cleaning up first boot partitions ...",
-// while userdata grows over the bundled apps' partition (AUTOAPK) once they're installed. The logo fills the middle third of
-// the animation (gen-bootanimation.sh), the line goes just below it. The strip is opaque
-// black like the background there, so it needs no blending.
-void BootAnimation::drawResizeNotice(int x, int y, int w, int h) {
+// while userdata grows over the bundled apps' partition (AUTOAPK) once they're installed.
+//
+// Settings > Personalization > Boot progress bar / Show boot details: the stage the start is
+// in, and a bar that moves with it. The animation starts before /data and so before persist.*
+// is there, so andr36oid-bootanim.rc keeps both as marker files on /cache, looked at once.
+// Off, nothing else happens here. On, a few system properties are read 4 times a second.
+void BootAnimation::drawBootNotes(int x, int y, int w, int h) {
+    if (w <= 0 || h <= 0) return;
+    if (!mStagesChecked) {
+        mStagesChecked = true;
+        if (!mShuttingDown) {
+            mStageBar = access(kStageBarMarker, F_OK) == 0;
+            mStageText = access(kStageTextMarker, F_OK) == 0;
+            if (mStageBar || mStageText) {
+                ALOGI("boot stages: bar %d, details %d", mStageBar, mStageText);
+            }
+        }
+    }
+    const nsecs_t now = systemTime();
+    if (mStageBar || mStageText) updateBootStage(now);
+
     char value[PROPERTY_VALUE_MAX];
     property_get(kResizeProp, value, "0");
     const char* text = strcmp(value, "1") == 0 ? kResizeText
             : strcmp(value, "2") == 0 ? kReclaimText : nullptr;
-    if (text == nullptr || w <= 0 || h <= 0) return;
+    if (text == nullptr && mStageText && mStage >= 0) text = kStages[mStage].text;
 
+    const int top = y + h * 2 / 3 + h / 30;
+    const int fontSize = std::max(12, h / 24);
+    if (text != nullptr) drawNoticeLine(text, x, top, w, fontSize);
+    if (mStageBar) drawProgressBar(x, top + fontSize * 2, w, now);
+}
+
+// The furthest stage whose signal is there; skipped ones don't matter, it never goes back
+void BootAnimation::updateBootStage(nsecs_t now) {
+    if (mStage >= 0 && now - mLastStageCheck < kStageCheckInterval) return;
+    mLastStageCheck = now;
+    int stage = std::max(mStage, 0);
+    for (int i = kStageCount - 1; i > stage; i--) {
+        if (stageReached(kStages[i])) {
+            stage = i;
+            break;
+        }
+    }
+    if (stage != mStage) {
+        mStage = stage;
+        mStageStart = now;
+        ALOGI("boot stage %d: %s", stage, kStages[stage].text);
+    }
+}
+
+// Each stage owns a share of the bar as long as it usually takes (kStages). Inside a stage
+// the bar creeps towards its end but stops at 90% of it until the next stage shows up.
+// When the start is done the bar fills up while the animation plays its last part.
+void BootAnimation::drawProgressBar(int x, int top, int w, nsecs_t now) {
+    float total = 0, before = 0;
+    for (int i = 0; i < kStageCount; i++) {
+        if (i < mStage) before += kStages[i].seconds;
+        total += kStages[i].seconds;
+    }
+    float p = 1.0f;
+    if (!exitPending()) {
+        const float span = kStages[std::max(mStage, 0)].seconds;
+        const float t = (now - mStageStart) / 1e9f;
+        p = (before + span * 0.9f * (1.0f - expf(-t / span))) / total;
+    }
+    mProgress = std::min(1.0f, std::max(mProgress, p));
+
+    const int bw = std::min(w, mWidth) * 2 / 5;
+    const int bh = std::max(2, mHeight / 160);
+    const int bx = x + (w - bw) / 2;
+    const int fill = (int)(bw * mProgress + 0.5f);
+    GLfloat clear[4];
+    glGetFloatv(GL_COLOR_CLEAR_VALUE, clear);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(bx, mHeight - (top + bh), bw, bh);
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    if (fill > 0) {
+        glScissor(bx, mHeight - (top + bh), fill, bh);
+        glClearColor(0.55f, 0.55f, 0.55f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+    glDisable(GL_SCISSOR_TEST);
+    glClearColor(clear[0], clear[1], clear[2], clear[3]);
+}
+
+// One grey line, centred. It's drawn once into a texture and kept until the text changes.
+// The strip is opaque black like the background there, so it needs no blending.
+void BootAnimation::drawNoticeLine(const char* text, int x, int top, int w, int fontSize) {
     if (mResizeTexture != 0 && mResizeShown != text) {
         glDeleteTextures(1, &mResizeTexture);
         mResizeTexture = 0;
@@ -468,7 +594,7 @@ void BootAnimation::drawResizeNotice(int x, int y, int w, int h) {
         mResizeShown = text;
         sk_sp<SkTypeface> face = SkTypeface::MakeFromFile(kResizeFontFile);
         if (face == nullptr) face = SkTypeface::MakeDefault();
-        SkFont font(face, std::max(12, h / 24));
+        SkFont font(face, fontSize);
         font.setEdging(SkFont::Edging::kAntiAlias);
         SkFontMetrics metrics;
         font.getMetrics(&metrics);
@@ -516,7 +642,6 @@ void BootAnimation::drawResizeNotice(int x, int y, int w, int h) {
     } else {
         glBindTexture(GL_TEXTURE_2D, mResizeTexture);
     }
-    const int top = y + h * 2 / 3 + h / 30;
     glDrawTexiOES(x, mHeight - (top + mResizeHeight), 0, w, mResizeHeight);
     // the animation uploads parts that play once into texture 0
     glBindTexture(GL_TEXTURE_2D, 0);
