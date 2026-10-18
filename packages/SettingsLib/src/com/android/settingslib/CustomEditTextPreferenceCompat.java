@@ -23,8 +23,13 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.util.AttributeSet;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 
 import androidx.annotation.CallSuper;
 import androidx.appcompat.app.AlertDialog;
@@ -111,7 +116,37 @@ public class CustomEditTextPreferenceCompat extends EditTextPreference {
         @Override
         protected void onBindDialogView(View view) {
             super.onBindDialogView(view);
+            final EditText editText = view.findViewById(android.R.id.edit);
+            if (editText != null) {
+                editText.setOnEditorActionListener(this::onEditorAction);
+            }
             getCustomizablePreference().onBindDialogView(view);
+        }
+
+        /**
+         * Next or Done on the keyboard closes it and moves the focus to OK, so a controller
+         * confirms with one more press. Android's own Next went to the nearest button below
+         * the field, which is Cancel. With OK greyed out Android's handling stays.
+         */
+        private boolean onEditorAction(TextView view, int actionId, KeyEvent event) {
+            if (actionId != EditorInfo.IME_ACTION_NEXT && actionId != EditorInfo.IME_ACTION_DONE) {
+                return false;
+            }
+            final Dialog dialog = getDialog();
+            if (!(dialog instanceof AlertDialog)) {
+                return false;
+            }
+            final Button ok = ((AlertDialog) dialog).getButton(DialogInterface.BUTTON_POSITIVE);
+            if (ok == null || !ok.isEnabled()) {
+                return false;
+            }
+            final InputMethodManager imm = view.getContext()
+                    .getSystemService(InputMethodManager.class);
+            if (imm != null) {
+                imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+            }
+            ok.requestFocus();
+            return true;
         }
 
         @Override
