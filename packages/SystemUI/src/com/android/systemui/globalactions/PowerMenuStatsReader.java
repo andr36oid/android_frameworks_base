@@ -34,6 +34,8 @@ final class PowerMenuStatsReader {
 
     static final String CPU_FREQ = "/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq";
 
+    static final String STORAGE_STAT = "/sys/block/mmcblk0/stat";
+
     /** -1 or NaN where a value couldn't be read. */
     int cpuPercent = -1;
     int cpuMhz = -1;
@@ -58,6 +60,8 @@ final class PowerMenuStatsReader {
     float ramAppsTop = Float.NaN;
     float ramKernelTop = Float.NaN;
     float ramCacheTop = Float.NaN;
+    /** How busy the SD card was since the last sample, 0..100, -1 if unknown. */
+    int storagePercent = -1;
     /** Swap is set up, which on this console is only the zram device from the fstab. */
     boolean zramOn;
 
@@ -68,6 +72,8 @@ final class PowerMenuStatsReader {
 
     private long mLastCpuBusy = -1;
     private long mLastCpuTotal;
+    private long mLastIoTicks = -1;
+    private long mLastIoTime;
 
     PowerMenuStatsReader() {
         this("");
@@ -105,6 +111,7 @@ final class PowerMenuStatsReader {
         copy.ramAppsTop = ramAppsTop;
         copy.ramKernelTop = ramKernelTop;
         copy.ramCacheTop = ramCacheTop;
+        copy.storagePercent = storagePercent;
         copy.zramOn = zramOn;
         return copy;
     }
@@ -122,6 +129,8 @@ final class PowerMenuStatsReader {
     void reset() {
         mLastCpuBusy = -1;
         cpuPercent = -1;
+        mLastIoTicks = -1;
+        storagePercent = -1;
     }
 
     void sample() {
@@ -131,8 +140,41 @@ final class PowerMenuStatsReader {
                 : positiveOrMinusOne(readInt(mGpuFreqPath, 1000000));
         final int milliC = mTempPath == null ? Integer.MIN_VALUE : readInt(mTempPath, 1);
         tempC = milliC == Integer.MIN_VALUE || milliC < 0 ? Float.NaN : milliC / 1000f;
+        sampleStorage(read(mRoot + STORAGE_STAT), System.nanoTime() / 1000000);
         sampleBattery();
         sampleRam(read(mRoot + "/proc/meminfo"));
+    }
+
+    /**
+     * How much of the time since the last sample the SD card was busy, like iostat's %util:
+     * field 10 of its stat file (io_ticks, milliseconds spent doing I/O) over the wall clock.
+     */
+    void sampleStorage(String stat, long nowMs) {
+        if (stat == null) {
+            storagePercent = -1;
+            mLastIoTicks = -1;
+            return;
+        }
+        final String[] fields = stat.trim().split("\\s+");
+        final long ticks;
+        try {
+            ticks = fields.length > 9 ? Long.parseLong(fields[9]) : -1;
+        } catch (NumberFormatException e) {
+            storagePercent = -1;
+            mLastIoTicks = -1;
+            return;
+        }
+        if (ticks < 0) {
+            storagePercent = -1;
+            mLastIoTicks = -1;
+            return;
+        }
+        if (mLastIoTicks >= 0 && nowMs > mLastIoTime && ticks >= mLastIoTicks) {
+            storagePercent = (int) Math.max(0, Math.min(100,
+                    100 * (ticks - mLastIoTicks) / (nowMs - mLastIoTime)));
+        }
+        mLastIoTicks = ticks;
+        mLastIoTime = nowMs;
     }
 
     /** Busy share of all cores since the last sample, from the first line of /proc/stat. */

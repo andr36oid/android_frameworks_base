@@ -44,6 +44,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
     private Cell mTemp;
     private Cell mBattery;
     private Cell mRam;
+    private Cell mStorage;
     private TextView mZram;
     private TextView mRamLegend;
     // The RAM graph's layers, lowest first: apps, kernel, the rest of the used RAM, cache
@@ -89,6 +90,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         mTemp = new Cell(findViewById(R.id.global_actions_stats_temp));
         mBattery = new Cell(findViewById(R.id.global_actions_stats_bat));
         mRam = new Cell(findViewById(R.id.global_actions_stats_ram));
+        mStorage = new Cell(findViewById(R.id.global_actions_stats_storage));
         mZram = findViewById(R.id.global_actions_stats_zram);
         mRamLegend = findViewById(R.id.global_actions_stats_ram_legend);
         showRamLegend();
@@ -148,6 +150,8 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 0f, Float.NaN, 2f);
         showGraph(mRam, history, PowerMenuStatsSampler.SERIES_RAM, capacity, 0f, 100f, 0f);
         showRamLayers(history, capacity);
+        showGraph(mStorage, history, PowerMenuStatsSampler.SERIES_STORAGE, capacity,
+                0f, 100f, 0f);
         showNumbers(s, maxTemp);
     }
 
@@ -210,6 +214,10 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 PowerMenuStatsFormat.ramValue(s.ramPercent),
                 PowerMenuStatsFormat.ramLevel(s.ramPercent),
                 PowerMenuStatsFormat.ramExtra(s.ramUsedMb, s.ramTotalMb));
+        // SD   12% (how busy the card was)
+        show(mStorage, R.string.global_actions_stats_storage,
+                PowerMenuStatsFormat.storageValue(s.storagePercent),
+                PowerMenuStatsFormat.storageLevel(s.storagePercent), "");
         // ✓ ZRAM on, under the RAM graph; hidden (keeping its space) while there is no swap
         mZram.setVisibility(s.zramOn ? VISIBLE : INVISIBLE);
     }

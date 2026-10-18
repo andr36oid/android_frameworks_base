@@ -89,6 +89,16 @@ final class PowerMenuStatsFormat {
         return usedMb < 0 || totalMb <= 0 ? "" : " " + usedMb + "/" + totalMb + "M";
     }
 
+    /** " 89%": busy share right-aligned to 4 characters, "  --" if unknown. */
+    static String storageValue(int percent) {
+        return percent < 0 ? "  --" : pad(percent + "%", 4);
+    }
+
+    /** Amber from 90% busy, like the RAM. */
+    static int storageLevel(int percent) {
+        return percent >= 90 ? LEVEL_OK : LEVEL_NORMAL;
+    }
+
     /**
      * The scale of a graph as {min, max}. A NaN {@code min} or {@code max} follows the
      * values, keeping at least {@code minRange} between the two.

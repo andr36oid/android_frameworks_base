@@ -50,6 +50,8 @@
     <string name="global_actions_stats_bat">BAT</string>
     <!-- Memory [CHAR LIMIT=5] -->
     <string name="global_actions_stats_ram">RAM</string>
+    <!-- How busy the SD card is [CHAR LIMIT=5] -->
+    <string name="global_actions_stats_storage">SD</string>
     <!-- Small note under the RAM graph while compressed memory (zram swap) is on [CHAR LIMIT=12] -->
     <string name="global_actions_stats_zram">\u2713 ZRAM on</string>
     <!-- Legend under the RAM graph, one word per colored layer, all four on one short line:

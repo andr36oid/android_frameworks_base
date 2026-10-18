@@ -125,6 +125,23 @@ public class PowerMenuStatsTest {
     }
 
     @Test
+    public void reader_storageUtilisation() {
+        final PowerMenuStatsReader reader = PowerMenuStatsReader.empty();
+        final String head = "100 0 800 50 20 0 400 30 0 ";
+        reader.sampleStorage(head + "1000 5000 0\n", 10000);
+        assertEquals(-1, reader.storagePercent);
+        reader.sampleStorage(head + "1890 5000 0\n", 11000);
+        assertEquals(89, reader.storagePercent);
+        // More busy time than wall time can't be more than 100
+        reader.sampleStorage(head + "4000 5000 0\n", 12000);
+        assertEquals(100, reader.storagePercent);
+        reader.sampleStorage(null, 13000);
+        assertEquals(-1, reader.storagePercent);
+        assertEquals("  --", PowerMenuStatsFormat.storageValue(-1));
+        assertEquals(" 89%", PowerMenuStatsFormat.storageValue(89));
+    }
+
+    @Test
     public void reader_meminfoLayers() {
         final PowerMenuStatsReader reader = PowerMenuStatsReader.empty();
         // used 600000: apps 300000 (anon + shmem), kernel 100000, the rest 200000;
