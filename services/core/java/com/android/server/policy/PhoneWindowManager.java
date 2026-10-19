@@ -671,17 +671,19 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // Screenshot shortcut while the list shows: wait until it is off the screen
     private static final long FN_HELP_SCREENSHOT_DELAY_MS = 150;
     // Consoles without FN (written by QuickStart and Settings > Controls): "scan:<code>" makes
-    // that built-in button FN, "vol_both" opens FN mode with Vol+ and Vol- pressed together.
-    // Unset is the real FN, or "vol_both" when FN is in the console's missing buttons.
+    // that built-in button FN; "combo:<code>+<code>" opens FN mode when one of the two built-in
+    // buttons is held and the other pressed. Unset is the real FN, or Start + Vol- when FN is
+    // in the console's missing buttons. "vol_both" (Vol+ and Vol- together, before) reads as
+    // Start + Vol- too.
     private static final String FN_STANDIN_SETTING = "andr36oid_fn_standin";
     private static final String FN_STANDIN_VOL_BOTH = "vol_both";
     private static final String FN_STANDIN_SCAN_PREFIX = "scan:";
+    private static final String FN_STANDIN_COMBO_PREFIX = "combo:";
+    private static final String FN_STANDIN_DEFAULT_COMBO = "combo:315+114";
     private static final String MISSING_BUTTONS_SETTING = "andr36oid_missing_buttons";
     // Known boards name their missing buttons in the device tree, used while the setting is unset
     private static final String MISSING_BUTTONS_DT_HINT =
             "/proc/device-tree/odroidgo3-joypad/andr36oid,missing-buttons";
-    // The second volume button this soon after the first makes the chord, not a volume step
-    private static final long FN_CHORD_DELAY_MS = 150;
     // FN mode closes by itself when no button follows
     private static final long FN_MODE_TIMEOUT_MS = 4000;
     private static final String JOYMOUSE_ACTIVE_PROPERTY = "sys.joymouse.active";
@@ -737,17 +739,20 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // Scan code of the built-in button that stands in for FN, 0 for none. From the settings
     // observer, so key events never read settings.
     private volatile int mFnStandinScanCode;
-    // Vol+ and Vol- together open FN mode
-    private volatile boolean mFnChordEnabled;
+    // Scan codes of the two built-in buttons of the FN combo, 0 for no combo
+    private volatile int mFnComboScanA;
+    private volatile int mFnComboScanB;
     // The stand-in was the last FN pressed, and what it sends, for the list's hint
     private volatile boolean mFnStandinHeld;
     private volatile int mFnStandinKeyCode = KeyEvent.KEYCODE_UNKNOWN;
-    // Down times of the built-in volume buttons held right now, 0 when up. Input reader thread.
-    private volatile long mFnChordVolumeUpTime;
-    private volatile long mFnChordVolumeDownTime;
-    // The volume buttons that made the chord: the rest of their press is swallowed
-    private volatile boolean mFnChordVolumeUpConsumed;
-    private volatile boolean mFnChordVolumeDownConsumed;
+    // Whether each combo button is held right now. Input reader thread.
+    private volatile boolean mFnComboHeldA;
+    private volatile boolean mFnComboHeldB;
+    // The combo button pressed second: the rest of its press is swallowed, 0 for none
+    private volatile int mFnComboSwallowScan;
+    // Key codes of the two combo buttons as pressed, held first and pressed second, for the hint
+    private volatile int mFnComboFirstKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+    private volatile int mFnComboSecondKeyCode = KeyEvent.KEYCODE_UNKNOWN;
     // FN mode: the list shows and the next button runs its FN shortcut
     private volatile boolean mFnModeActive;
     private final Runnable mOpenFnModeRunnable = this::openFnMode;
@@ -3122,9 +3127,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     + repeatCount + " keyguardOn=" + keyguardOn + " canceled=" + canceled);
         }
 
-        final long fnChordResult = interceptFnChordBeforeDispatching(event);
-        if (fnChordResult != 0) {
-            return fnChordResult;
+        if (interceptFnComboBeforeDispatching(event)) {
+            return -1;
         }
 
         // If we think we might have a volume down & power key chord on the way
@@ -4042,8 +4046,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private void updateFnStandin() {
         final ContentResolver resolver = mContext.getContentResolver();
         String standin = Settings.Global.getString(resolver, FN_STANDIN_SETTING);
-        if (TextUtils.isEmpty(standin) && isFnMissing(resolver)) {
-            standin = FN_STANDIN_VOL_BOTH;
+        if ((TextUtils.isEmpty(standin) && isFnMissing(resolver))
+                || FN_STANDIN_VOL_BOTH.equals(standin)) {
+            standin = FN_STANDIN_DEFAULT_COMBO;
         }
         int scanCode = 0;
         if (standin != null && standin.startsWith(FN_STANDIN_SCAN_PREFIX)) {
@@ -4056,7 +4061,28 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
         // The real FN needs no stand-in
         mFnStandinScanCode = scanCode > 0 && scanCode != FN_SCAN_CODE ? scanCode : 0;
-        mFnChordEnabled = FN_STANDIN_VOL_BOTH.equals(standin);
+        int comboA = 0;
+        int comboB = 0;
+        if (standin != null && standin.startsWith(FN_STANDIN_COMBO_PREFIX)) {
+            final String[] codes =
+                    standin.substring(FN_STANDIN_COMBO_PREFIX.length()).split("\\+");
+            try {
+                if (codes.length == 2) {
+                    comboA = Integer.parseInt(codes[0].trim());
+                    comboB = Integer.parseInt(codes[1].trim());
+                }
+            } catch (NumberFormatException e) {
+                Slog.w(TAG, "Ignoring " + FN_STANDIN_SETTING + "=" + standin);
+            }
+            if (comboA <= 0 || comboB <= 0 || comboA == comboB) {
+                comboA = 0;
+                comboB = 0;
+            }
+        }
+        mFnComboHeldA = false;
+        mFnComboHeldB = false;
+        mFnComboScanA = comboA;
+        mFnComboScanB = comboB;
     }
 
     /** FN is among the console's missing buttons: the setting once checked, else the DT hint. */
@@ -4081,72 +4107,52 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     /**
-     * Vol+ and Vol- pressed together open FN mode, on consoles without FN. Input reader thread,
-     * which sees every press. The first button's volume step waits in
-     * interceptFnChordBeforeDispatching until it is clear whether the second one follows.
-     * Holding both for long still resets the button remap: InputManagerService watches for
-     * that before any of this.
+     * The FN combo, on consoles without FN: one of its two built-in buttons held and the other
+     * pressed opens FN mode. Input reader thread, which sees every press. The button held
+     * first reaches the app as always, with no delay; only the second press is swallowed
+     * (interceptFnComboBeforeDispatching), so the combo never holds back a button.
      */
-    private void interceptFnChordBeforeQueueing(KeyEvent event, boolean interactive) {
-        final int keyCode = event.getKeyCode();
-        if ((keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN)
+    private void interceptFnComboBeforeQueueing(KeyEvent event, boolean interactive) {
+        final int scanCode = event.getScanCode();
+        final int comboA = mFnComboScanA;
+        final int comboB = mFnComboScanB;
+        if (comboA == 0 || (scanCode != comboA && scanCode != comboB)
                 || (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0 || !isBuiltInKey(event)) {
             return;
         }
-        final boolean volumeUp = keyCode == KeyEvent.KEYCODE_VOLUME_UP;
-        final long downTime = event.getAction() == KeyEvent.ACTION_DOWN ? event.getDownTime() : 0;
-        if (volumeUp) {
-            mFnChordVolumeUpTime = downTime;
+        final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+        final boolean isA = scanCode == comboA;
+        if (isA) {
+            mFnComboHeldA = down;
         } else {
-            mFnChordVolumeDownTime = downTime;
+            mFnComboHeldB = down;
         }
-        if (downTime == 0 || !mFnChordEnabled || !interactive || mFnModeActive
-                || (volumeUp ? mFnChordVolumeDownTime : mFnChordVolumeUpTime) == 0
+        if (!down || event.getRepeatCount() != 0 || !interactive || mFnModeActive
+                || !(isA ? mFnComboHeldB : mFnComboHeldA)
                 || !SystemProperties.getBoolean(FN_HOTKEYS_PROPERTY, true)) {
             return;
         }
-        // Both held: neither changes the volume, the rest of both presses is swallowed
-        mFnChordVolumeUpConsumed = true;
-        mFnChordVolumeDownConsumed = true;
+        // The other one is held: this press opens FN mode and goes no further
+        mFnComboSwallowScan = scanCode;
+        mFnComboSecondKeyCode = event.getKeyCode();
         mFnModeActive = true;
         mHandler.post(mOpenFnModeRunnable);
     }
 
     /**
-     * Holds back a volume button's step while the other one may still make the chord, like
-     * the screenshot chord does, and swallows the chord's buttons. Returns what
-     * interceptKeyBeforeDispatching returns, 0 to carry on.
+     * Swallows the press that completed the FN combo, with its repeats and its release. Returns
+     * true when the event is swallowed.
      */
-    private long interceptFnChordBeforeDispatching(KeyEvent event) {
-        final int keyCode = event.getKeyCode();
-        if ((keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN)
-                || (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0) {
-            return 0;
+    private boolean interceptFnComboBeforeDispatching(KeyEvent event) {
+        final int swallow = mFnComboSwallowScan;
+        if (swallow == 0 || event.getScanCode() != swallow
+                || (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0 || !isBuiltInKey(event)) {
+            return false;
         }
-        final boolean volumeUp = keyCode == KeyEvent.KEYCODE_VOLUME_UP;
-        final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
-        if ((volumeUp ? mFnChordVolumeUpConsumed : mFnChordVolumeDownConsumed)
-                && isBuiltInKey(event)) {
-            if (!down) {
-                if (volumeUp) {
-                    mFnChordVolumeUpConsumed = false;
-                } else {
-                    mFnChordVolumeDownConsumed = false;
-                }
-            }
-            return -1;
+        if (event.getAction() == KeyEvent.ACTION_UP) {
+            mFnComboSwallowScan = 0;
         }
-        if (!mFnChordEnabled || mFnModeActive || !down || event.getRepeatCount() != 0) {
-            return 0;
-        }
-        // Only while this very press is still held: let go alone, it steps the volume now
-        if ((volumeUp ? mFnChordVolumeUpTime : mFnChordVolumeDownTime) != event.getDownTime()
-                || !SystemProperties.getBoolean(FN_HOTKEYS_PROPERTY, true)) {
-            return 0;
-        }
-        final long timeoutTime = event.getDownTime() + FN_CHORD_DELAY_MS;
-        final long now = SystemClock.uptimeMillis();
-        return now < timeoutTime ? timeoutTime - now : 0;
+        return true;
     }
 
     private void openFnMode() {
@@ -4158,8 +4164,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mFnModeActive = false;
             return;
         }
-        showFnHelpRows(getFnHelpRows(true),
-                mContext.getString(R.string.fn_help_footer_vol_both));
+        showFnHelpRows(getFnHelpRows(true), mContext.getString(R.string.fn_help_footer_combo,
+                getKeyLabel(mFnComboFirstKeyCode), getKeyLabel(mFnComboSecondKeyCode)));
         mHandler.postDelayed(mCloseFnModeRunnable, FN_MODE_TIMEOUT_MS);
     }
 
@@ -4483,7 +4489,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mFnShortcutUsed = true;
         // A stand-in says which button it is, as nothing on the console reads FN
         showFnHelpRows(rows, mFnStandinHeld
-                ? mContext.getString(R.string.fn_help_footer_standin, getFnStandinLabel())
+                ? mContext.getString(R.string.fn_help_footer_standin,
+                        getKeyLabel(mFnStandinKeyCode))
                 : mContext.getString(R.string.fn_help_footer));
     }
 
@@ -4499,8 +4506,18 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     /** How the list names the button that stands in for FN. */
-    private String getFnStandinLabel() {
-        final int keyCode = mFnStandinKeyCode;
+    /** The key code of the combo button held first, for the hint, as it is pressed. */
+    private void trackFnComboFirstKey(KeyEvent event) {
+        final int scanCode = event.getScanCode();
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
+                && scanCode != 0 && (scanCode == mFnComboScanA || scanCode == mFnComboScanB)
+                && !mFnComboHeldA && !mFnComboHeldB) {
+            mFnComboFirstKeyCode = event.getKeyCode();
+        }
+    }
+
+    /** A button's name on the console, like "L3", "Start" or "Vol+". */
+    private String getKeyLabel(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_BUTTON_A:
                 return "A";
@@ -5030,7 +5047,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             // game button held for long: only for FN as Home
             scheduleFnHelp(down && isFnKey(event));
         }
-        interceptFnChordBeforeQueueing(event, interactive);
+        trackFnComboFirstKey(event);
+        interceptFnComboBeforeQueueing(event, interactive);
 
         // If screen is off then we treat the case where the keyguard is open but hidden
         // the same as if it were open and in front.

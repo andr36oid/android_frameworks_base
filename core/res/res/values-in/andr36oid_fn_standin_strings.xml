@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="fn_help_footer_standin">FN = <xliff:g id="button">%1$s</xliff:g>. Lepas: tutup. Tekan singkat: layar utama.</string>
-    <string name="fn_help_footer_vol_both">Dibuka dengan menekan Vol+ dan Vol− bersamaan. B untuk menutup.</string>
+    <string name="fn_help_footer_combo">Dibuka dengan <xliff:g id="first" example="Start">%1$s</xliff:g> + <xliff:g id="second" example="Vol−">%2$s</xliff:g>. B untuk menutup.</string>
     <string name="fn_help_extra_button">Tombol tambahan <xliff:g id="number">%1$d</xliff:g></string>
 </resources>

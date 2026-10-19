@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="fn_help_footer_standin"><xliff:g id="button">%1$s</xliff:g> 代替 FN。松开即可关闭，短按可返回主屏幕。</string>
-    <string name="fn_help_footer_vol_both">通过同时按下 Vol+ 和 Vol− 打开。按 B 关闭。</string>
+    <string name="fn_help_footer_combo">通过 <xliff:g id="first" example="Start">%1$s</xliff:g> + <xliff:g id="second" example="Vol−">%2$s</xliff:g> 打开。按 B 关闭。</string>
     <string name="fn_help_extra_button">额外按键 <xliff:g id="number">%1$d</xliff:g></string>
 </resources>
