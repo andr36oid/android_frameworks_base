@@ -124,6 +124,12 @@ public class FocusFinder {
      * @return the "effective" root of {@param focused}
      */
     private ViewGroup getEffectiveRoot(ViewGroup root, View focused) {
+        // andr36oid: the console declares a touchscreen (the touch controls' virtual one) but
+        // has only buttons. A toolbar (a cluster that "blocks focus" on touch devices) would
+        // keep the d-pad in it, e.g. in a search field with results below it.
+        if (true) {
+            return root;
+        }
         if (focused == null || focused == root) {
             return root;
         }
