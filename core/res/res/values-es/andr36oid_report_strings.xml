@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="report_chord_started">Creando un informe de problemas… deja la consola encendida, tarda alrededor de un minuto</string>
+    <string name="report_chord_busy">Ya se está creando un informe de problemas</string>
+    <string name="report_chord_saved">Informe de problemas guardado: <xliff:g id="file" example="BOOT/andr36oid-reports/report-20261019-184823.zip">%1$s</xliff:g></string>
+    <string name="report_chord_failed">No se ha podido guardar el informe de problemas. Inténtalo de nuevo en Ajustes &gt; Sistema &gt; Informe de problemas.</string>
+</resources>

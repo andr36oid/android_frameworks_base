@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="report_chord_started">正在生成问题报告…请保持主机开启，大约需要一分钟</string>
+    <string name="report_chord_busy">问题报告已在生成中</string>
+    <string name="report_chord_saved">问题报告已保存：<xliff:g id="file" example="BOOT/andr36oid-reports/report-20261019-184823.zip">%1$s</xliff:g></string>
+    <string name="report_chord_failed">无法保存问题报告。请在“设置”&gt;“系统”&gt;“问题报告”中重试。</string>
+</resources>

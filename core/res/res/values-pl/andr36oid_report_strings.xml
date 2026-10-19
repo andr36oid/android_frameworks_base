@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="report_chord_started">Tworzenie raportu o problemie… nie wyłączaj konsoli, to potrwa około minuty</string>
+    <string name="report_chord_busy">Raport o problemie jest już tworzony</string>
+    <string name="report_chord_saved">Raport o problemie zapisany: <xliff:g id="file" example="BOOT/andr36oid-reports/report-20261019-184823.zip">%1$s</xliff:g></string>
+    <string name="report_chord_failed">Nie udało się zapisać raportu o problemie. Spróbuj ponownie w Ustawienia &gt; System &gt; Zgłoszenie problemu.</string>
+</resources>

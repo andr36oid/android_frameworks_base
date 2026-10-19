@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Toasts of the problem report shortcut: A, B, X and Y held together for 10 seconds,
+         on any screen (PhoneWindowManager). -->
+    <string name="report_chord_started">Making a problem report… keep the console on, it takes about a minute</string>
+    <string name="report_chord_busy">A problem report is already being made</string>
+    <!-- %1$s is where it went, like "BOOT/andr36oid-reports/report-20261019-184823.zip" -->
+    <string name="report_chord_saved">Problem report saved: <xliff:g id="file" example="BOOT/andr36oid-reports/report-20261019-184823.zip">%1$s</xliff:g></string>
+    <string name="report_chord_failed">The problem report could not be saved. Try again from Settings &gt; System &gt; Problem report.</string>
+
+    <java-symbol type="string" name="report_chord_started" />
+    <java-symbol type="string" name="report_chord_busy" />
+    <java-symbol type="string" name="report_chord_saved" />
+    <java-symbol type="string" name="report_chord_failed" />
+</resources>

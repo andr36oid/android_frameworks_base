@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="report_chord_started">Sorun raporu hazırlanıyor… konsolu açık tutun, yaklaşık bir dakika sürer</string>
+    <string name="report_chord_busy">Zaten bir sorun raporu hazırlanıyor</string>
+    <string name="report_chord_saved">Sorun raporu kaydedildi: <xliff:g id="file" example="BOOT/andr36oid-reports/report-20261019-184823.zip">%1$s</xliff:g></string>
+    <string name="report_chord_failed">Sorun raporu kaydedilemedi. Ayarlar &gt; Sistem &gt; Sorun raporu bölümünden tekrar deneyin.</string>
+</resources>

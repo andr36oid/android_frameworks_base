@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="report_chord_started">Membuat laporan masalah… biarkan konsol tetap menyala, ini butuh sekitar satu menit</string>
+    <string name="report_chord_busy">Laporan masalah sedang dibuat</string>
+    <string name="report_chord_saved">Laporan masalah disimpan: <xliff:g id="file" example="BOOT/andr36oid-reports/report-20261019-184823.zip">%1$s</xliff:g></string>
+    <string name="report_chord_failed">Laporan masalah tidak dapat disimpan. Coba lagi dari Setelan &gt; Sistem &gt; Laporan masalah.</string>
+</resources>

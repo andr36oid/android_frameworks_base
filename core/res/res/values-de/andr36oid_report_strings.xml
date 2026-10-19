@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="report_chord_started">Fehlerbericht wird erstellt … lass die Konsole an, das dauert etwa eine Minute</string>
+    <string name="report_chord_busy">Ein Fehlerbericht wird schon erstellt</string>
+    <string name="report_chord_saved">Fehlerbericht gespeichert: <xliff:g id="file" example="BOOT/andr36oid-reports/report-20261019-184823.zip">%1$s</xliff:g></string>
+    <string name="report_chord_failed">Der Fehlerbericht konnte nicht gespeichert werden. Versuch es noch mal unter Einstellungen &gt; System &gt; Fehlerbericht.</string>
+</resources>

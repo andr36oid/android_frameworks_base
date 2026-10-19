@@ -244,6 +244,7 @@ import org.lineageos.internal.util.ActionUtils;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -735,6 +736,22 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // The FN shortcut list, made on first use. Only touched on mHandler.
     private FnShortcutHelp mFnHelp;
     private final Runnable mShowFnHelpRunnable = this::showFnHelp;
+    // A, B, X and Y of the built-in gamepad (scan codes, so a button mapping doesn't matter)
+    // held together this long make a problem report, on any screen and also during setup.
+    // The buttons still reach the app as usual.
+    private static final int[] REPORT_CHORD_SCAN_CODES = {304, 305, 307, 308};
+    private static final int REPORT_CHORD_ALL = (1 << REPORT_CHORD_SCAN_CODES.length) - 1;
+    private static final long REPORT_CHORD_HOLD_MS = 10000;
+    // The ProblemReport app's init service and the files it shares with it
+    private static final String REPORT_SERVICE = "andr36oid-report";
+    private static final File REPORT_DIR = new File("/data/misc/andr36oid-report");
+    private static final long REPORT_POLL_MS = 2000;
+    private static final long REPORT_TIMEOUT_MS = 5 * 60 * 1000;
+    // The chord's buttons held right now, a bit each. Input reader thread.
+    private int mReportChordDown;
+    private long mReportStartedAt;
+    private final Runnable mReportChordRunnable = this::startProblemReport;
+    private final Runnable mReportPollRunnable = this::pollProblemReport;
     private final Runnable mHideFnHelpRunnable = this::hideFnHelp;
     // Scan code of the built-in button that stands in for FN, 0 for none. From the settings
     // observer, so key events never read settings.
@@ -4715,6 +4732,83 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         return false;
     }
 
+    /** A, B, X and Y held: after REPORT_CHORD_HOLD_MS a problem report starts, once a hold. */
+    private void trackReportChord(KeyEvent event) {
+        if ((event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0 || !isBuiltInKey(event)) {
+            return;
+        }
+        int bit = -1;
+        for (int i = 0; i < REPORT_CHORD_SCAN_CODES.length; i++) {
+            if (event.getScanCode() == REPORT_CHORD_SCAN_CODES[i]) {
+                bit = 1 << i;
+                break;
+            }
+        }
+        if (bit < 0) {
+            return;
+        }
+        final int before = mReportChordDown;
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            mReportChordDown |= bit;
+        } else if (event.getAction() == KeyEvent.ACTION_UP) {
+            mReportChordDown &= ~bit;
+        }
+        if (mReportChordDown == REPORT_CHORD_ALL && before != REPORT_CHORD_ALL) {
+            mHandler.postDelayed(mReportChordRunnable, REPORT_CHORD_HOLD_MS);
+        } else if (mReportChordDown != REPORT_CHORD_ALL && before == REPORT_CHORD_ALL) {
+            mHandler.removeCallbacks(mReportChordRunnable);
+        }
+    }
+
+    /** Starts the report like the Problem report page does: a note, then its init service. */
+    private void startProblemReport() {
+        final String state = SystemProperties.get("init.svc." + REPORT_SERVICE, "");
+        if ("running".equals(state) || "restarting".equals(state)
+                || SystemProperties.get("init.svc.andr36oid-report-boot", "").equals("running")) {
+            showFnToast(mContext.getString(com.android.internal.R.string.report_chord_busy));
+            return;
+        }
+        try {
+            new File(REPORT_DIR, "status").delete();
+            try (FileOutputStream out = new FileOutputStream(new File(REPORT_DIR, "note.txt"))) {
+                out.write("(made with the A+B+X+Y shortcut)".getBytes(StandardCharsets.UTF_8));
+            }
+            SystemProperties.set("ctl.start", REPORT_SERVICE);
+        } catch (IOException | RuntimeException e) {
+            Slog.w(TAG, "Could not start a problem report", e);
+            showFnToast(mContext.getString(com.android.internal.R.string.report_chord_failed));
+            return;
+        }
+        Slog.i(TAG, "Problem report started with A+B+X+Y");
+        showFnToast(mContext.getString(com.android.internal.R.string.report_chord_started));
+        mReportStartedAt = SystemClock.uptimeMillis();
+        mHandler.removeCallbacks(mReportPollRunnable);
+        mHandler.postDelayed(mReportPollRunnable, REPORT_POLL_MS);
+    }
+
+    /** Says where the report went once the service wrote its status line. */
+    private void pollProblemReport() {
+        String line = null;
+        try {
+            final byte[] buf = Files.readAllBytes(new File(REPORT_DIR, "status").toPath());
+            line = new String(buf, StandardCharsets.UTF_8).trim();
+        } catch (IOException | RuntimeException e) {
+            // not written yet
+        }
+        if (line != null && line.startsWith("done")) {
+            showFnToast(mContext.getString(com.android.internal.R.string.report_chord_saved,
+                    line.substring("done".length()).trim()));
+            return;
+        }
+        if (line != null && line.startsWith("error")) {
+            showFnToast(mContext.getString(com.android.internal.R.string.report_chord_failed));
+            return;
+        }
+        if (SystemClock.uptimeMillis() - mReportStartedAt < REPORT_TIMEOUT_MS) {
+            mHandler.postDelayed(mReportPollRunnable, REPORT_POLL_MS);
+        }
+    }
+
     private void showFnToast(String text) {
         if (mFnToast != null) {
             mFnToast.cancel();
@@ -5023,6 +5117,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             // If we have not yet booted, don't let key events do anything.
             return 0;
         }
+
+        trackReportChord(keyEvent);
 
         // The button standing in for FN is FN from here on: Home, the list, the shortcuts
         final boolean fnStandin = isFnStandinKey(keyEvent);
