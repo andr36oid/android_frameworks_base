@@ -223,6 +223,8 @@ private:
     nsecs_t     mStageStart = 0;
     nsecs_t     mLastStageCheck = 0;
     float       mProgress = 0.0f;
+    nsecs_t     mBarDoneAt = 0;
+    float       mBarDoneFrom = 0.0f;
     bool        mKeysOpened = false;
     std::vector<int> mKeyFds;
     nsecs_t     mLastKeyCheck = 0;

@@ -567,7 +567,8 @@ void BootAnimation::updateBootStage(nsecs_t now) {
 
 // Each stage owns a share of the bar as long as it usually takes (kStages). Inside a stage
 // the bar creeps towards its end but stops at 90% of it until the next stage shows up.
-// When the start is done the bar fills up while the animation plays its last part.
+// When the start is done the bar fills up and fades out while the animation plays its
+// last part.
 void BootAnimation::drawProgressBar(int x, int top, int w, nsecs_t now) {
     float total = 0, before = 0;
     for (int i = 0; i < kStageCount; i++) {
@@ -575,10 +576,20 @@ void BootAnimation::drawProgressBar(int x, int top, int w, nsecs_t now) {
         total += stageSeconds(i);
     }
     float p = 1.0f;
+    float fade = 1.0f;  // 1 visible, 0 gone
     if (!exitPending()) {
         const float span = stageSeconds(std::max(mStage, 0));
         const float t = (now - mStageStart) / 1e9f;
         p = (before + span * 0.9f * (1.0f - expf(-t / span))) / total;
+    } else {
+        // The start is done: the bar runs to the end in 0.3 s, then fades out in 0.5 s
+        if (mBarDoneAt == 0) {
+            mBarDoneAt = now;
+            mBarDoneFrom = mProgress;
+        }
+        const float t = (now - mBarDoneAt) / 1e9f;
+        p = mBarDoneFrom + (1.0f - mBarDoneFrom) * std::min(1.0f, t / 0.3f);
+        fade = 1.0f - std::max(0.0f, std::min(1.0f, (t - 0.3f) / 0.5f));
     }
     mProgress = std::min(1.0f, std::max(mProgress, p));
 
@@ -590,11 +601,12 @@ void BootAnimation::drawProgressBar(int x, int top, int w, nsecs_t now) {
     glGetFloatv(GL_COLOR_CLEAR_VALUE, clear);
     glEnable(GL_SCISSOR_TEST);
     glScissor(bx, mHeight - (top + bh), bw, bh);
-    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+    // fading towards the black strip it sits on
+    glClearColor(0.2f * fade, 0.2f * fade, 0.2f * fade, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     if (fill > 0) {
         glScissor(bx, mHeight - (top + bh), fill, bh);
-        glClearColor(0.55f, 0.55f, 0.55f, 1.0f);
+        glClearColor(0.55f * fade, 0.55f * fade, 0.55f * fade, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
     }
     glDisable(GL_SCISSOR_TEST);
