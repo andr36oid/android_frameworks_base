@@ -7268,30 +7268,34 @@ public class PackageManagerService extends IPackageManager.Stub
             Trace.traceBegin(TRACE_TAG_PACKAGE_MANAGER, "queryIntentActivities");
 
             return new ParceledListSlice<>(withoutLauncherHidden(intent,
-                    queryIntentActivitiesInternal(intent, resolvedType, flags, userId)));
+                    queryIntentActivitiesInternal(intent, resolvedType, flags, userId),
+                    Binder.getCallingUid()));
         } finally {
             Trace.traceEnd(TRACE_TAG_PACKAGE_MANAGER);
         }
     }
 
     /**
-     * andr36oid: apps that only open files (a text editor) are left out of the launchers'
-     * app lists: ro.andr36oid.launcher_hidden names them, comma separated. Only queries for
-     * launcher entries are changed, so they still open the files they are for.
+     * andr36oid: a launcher's list of apps leaves out apps that only open files (a text
+     * editor; ro.andr36oid.launcher_hidden names them, comma separated) and the launcher
+     * itself (Daijishou listed itself). Only lists of all launcher entries change: asking
+     * for one app's entry (a set package or component) and opening files work as before.
      */
     private static List<ResolveInfo> withoutLauncherHidden(Intent intent,
-            List<ResolveInfo> list) {
-        if (list == null || list.isEmpty() || !intent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
+            List<ResolveInfo> list, int callingUid) {
+        if (list == null || list.isEmpty() || !intent.hasCategory(Intent.CATEGORY_LAUNCHER)
+                || intent.getPackage() != null || intent.getComponent() != null) {
             return list;
         }
-        final String hidden = SystemProperties.get("ro.andr36oid.launcher_hidden", "");
-        if (hidden.isEmpty()) {
-            return list;
-        }
-        final List<String> names = Arrays.asList(hidden.split(","));
+        final List<String> names = Arrays.asList(
+                SystemProperties.get("ro.andr36oid.launcher_hidden", "").split(","));
+        final boolean system = UserHandle.getAppId(callingUid) < Process.FIRST_APPLICATION_UID;
         final List<ResolveInfo> kept = new ArrayList<>(list.size());
         for (ResolveInfo info : list) {
-            if (info.activityInfo == null || !names.contains(info.activityInfo.packageName)) {
+            final ActivityInfo a = info.activityInfo;
+            if (a == null || (!names.contains(a.packageName)
+                    && (system || a.applicationInfo == null
+                            || a.applicationInfo.uid != callingUid))) {
                 kept.add(info);
             }
         }
@@ -24786,7 +24790,8 @@ public class PackageManagerService extends IPackageManager.Stub
                 Intent intent, String resolvedType, int flags, int filterCallingUid, int userId) {
             return withoutLauncherHidden(intent, PackageManagerService.this
                     .queryIntentActivitiesInternal(intent, resolvedType, flags, 0, filterCallingUid,
-                            userId, false /*resolveForStart*/, true /*allowDynamicSplits*/));
+                            userId, false /*resolveForStart*/, true /*allowDynamicSplits*/),
+                    filterCallingUid);
         }
 
         @Override
