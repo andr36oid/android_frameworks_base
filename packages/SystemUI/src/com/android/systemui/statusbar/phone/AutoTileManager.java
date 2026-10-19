@@ -116,9 +116,8 @@ public class AutoTileManager implements UserAwareController {
                 && ColorDisplayManager.isNightDisplayAvailable(mContext)) {
             mNightDisplayListener.setCallback(mNightDisplayCallback);
         }
-        if (!mAutoTracker.isAdded(CAST)) {
-            mCastController.addCallback(mCastCallback);
-        }
+        // andr36oid: no Cast tile on its own. These consoles can't cast, and a screen
+        // recording counts as casting here, so the first one pinned the tile.
 
         int settingsN = mAutoAddSettingList.size();
         for (int i = 0; i < settingsN; i++) {
