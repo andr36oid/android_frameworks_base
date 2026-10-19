@@ -95,9 +95,13 @@ final class PowerMenuStatsSampler {
         }
     };
 
+    /** Kernel Tweaks > Disable performance metric gathering: no panel and no sampling. */
+    static final String PROP_METRICS_OFF = "sys.andr36oid.perf_metrics_off";
+
     static boolean isEnabled() {
-        return SystemProperties.getBoolean(PROP_ENABLED,
-                SystemProperties.getBoolean(PROP_AVAILABLE, false));
+        return !SystemProperties.getBoolean(PROP_METRICS_OFF, false)
+                && SystemProperties.getBoolean(PROP_ENABLED,
+                        SystemProperties.getBoolean(PROP_AVAILABLE, false));
     }
 
     static synchronized PowerMenuStatsSampler getInstance(Context context) {
@@ -183,8 +187,9 @@ final class PowerMenuStatsSampler {
         if (!mScreenOn && !mLive) {
             return;
         }
-        if (!mLive && !isEnabled()) {
-            // Switched off at runtime; the receiver stays and checks again next time
+        if (!isEnabled()) {
+            // Switched off at runtime (also in Kernel Tweaks, then even with the menu open);
+            // the receiver stays and checks again next time
             return;
         }
         if (mReader == null) {
