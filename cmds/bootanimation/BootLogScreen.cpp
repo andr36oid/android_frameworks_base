@@ -84,6 +84,8 @@ constexpr SkColor kHeaderTextColor = SkColorSetRGB(0x60, 0xe0, 0xd0);
 constexpr const char* kResizeProp = "sys.andr36oid.resizing";
 constexpr const char* kResizeText = "Resizing SD card ...";      // sys.andr36oid.resizing=1
 constexpr const char* kReclaimText = "Cleaning up first boot partitions ..."; // =2
+// =3: the Magisk app was updated, root is rebuilt to match (gameconsole-setup magisk)
+constexpr const char* kMagiskText = "Rebuilding Magisk RAM disk ...";
 constexpr const char* kResizeFontFile = "/system/fonts/Roboto-Regular.ttf";
 constexpr SkColor kResizeColor = SkColorSetRGB(0x8c, 0x8c, 0x8c);
 
@@ -526,7 +528,8 @@ void BootAnimation::drawBootNotes(int x, int y, int w, int h) {
     char value[PROPERTY_VALUE_MAX];
     property_get(kResizeProp, value, "0");
     const char* text = strcmp(value, "1") == 0 ? kResizeText
-            : strcmp(value, "2") == 0 ? kReclaimText : nullptr;
+            : strcmp(value, "2") == 0 ? kReclaimText
+            : strcmp(value, "3") == 0 ? kMagiskText : nullptr;
     if (text == nullptr && mStageText && mStage >= 0) text = kStages[mStage].text;
 
     const int top = y + h * 2 / 3 + h / 30;
