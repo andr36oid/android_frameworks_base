@@ -7267,11 +7267,35 @@ public class PackageManagerService extends IPackageManager.Stub
         try {
             Trace.traceBegin(TRACE_TAG_PACKAGE_MANAGER, "queryIntentActivities");
 
-            return new ParceledListSlice<>(
-                    queryIntentActivitiesInternal(intent, resolvedType, flags, userId));
+            return new ParceledListSlice<>(withoutLauncherHidden(intent,
+                    queryIntentActivitiesInternal(intent, resolvedType, flags, userId)));
         } finally {
             Trace.traceEnd(TRACE_TAG_PACKAGE_MANAGER);
         }
+    }
+
+    /**
+     * andr36oid: apps that only open files (a text editor) are left out of the launchers'
+     * app lists: ro.andr36oid.launcher_hidden names them, comma separated. Only queries for
+     * launcher entries are changed, so they still open the files they are for.
+     */
+    private static List<ResolveInfo> withoutLauncherHidden(Intent intent,
+            List<ResolveInfo> list) {
+        if (list == null || list.isEmpty() || !intent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
+            return list;
+        }
+        final String hidden = SystemProperties.get("ro.andr36oid.launcher_hidden", "");
+        if (hidden.isEmpty()) {
+            return list;
+        }
+        final List<String> names = Arrays.asList(hidden.split(","));
+        final List<ResolveInfo> kept = new ArrayList<>(list.size());
+        for (ResolveInfo info : list) {
+            if (info.activityInfo == null || !names.contains(info.activityInfo.packageName)) {
+                kept.add(info);
+            }
+        }
+        return kept;
     }
 
     /**
@@ -24760,9 +24784,9 @@ public class PackageManagerService extends IPackageManager.Stub
         @Override
         public List<ResolveInfo> queryIntentActivities(
                 Intent intent, String resolvedType, int flags, int filterCallingUid, int userId) {
-            return PackageManagerService.this
+            return withoutLauncherHidden(intent, PackageManagerService.this
                     .queryIntentActivitiesInternal(intent, resolvedType, flags, 0, filterCallingUid,
-                            userId, false /*resolveForStart*/, true /*allowDynamicSplits*/);
+                            userId, false /*resolveForStart*/, true /*allowDynamicSplits*/));
         }
 
         @Override
