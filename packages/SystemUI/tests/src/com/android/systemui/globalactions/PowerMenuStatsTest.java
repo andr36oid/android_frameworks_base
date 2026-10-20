@@ -331,6 +331,32 @@ public class PowerMenuStatsTest {
         assertTrue(Float.isNaN(PowerMenuStatsFormat.max(values, 1)));
     }
 
+    @Test
+    public void storageFollowsTheBootDisk() throws IOException {
+        // an SD card and andr36oid installed on the built-in eMMC, with its boot area
+        final String sd = "sys/devices/platform/ff370000.dwmmc/mmc_host/mmc0/mmc0:aaaa/block/mmcblk0";
+        final String emmc = "sys/devices/platform/ff390000.dwmmc/mmc_host/mmc2/mmc2:0001/block/";
+        write(sd + "/stat", "1\n");
+        write(emmc + "mmcblk2/stat", "2\n");
+        write(emmc + "mmcblk2/mmcblk2boot0/stat", "3\n");
+        new File(mRoot, "sys/block").mkdirs();
+        for (String[] link : new String[][] {{"mmcblk0", "../" + sd.substring(4)},
+                {"mmcblk2boot0", "../devices/platform/ff390000.dwmmc/mmc_host/mmc2/mmc2:0001"
+                        + "/block/mmcblk2/mmcblk2boot0"},
+                {"mmcblk2", "../devices/platform/ff390000.dwmmc/mmc_host/mmc2/mmc2:0001"
+                        + "/block/mmcblk2"}}) {
+            Files.createSymbolicLink(new File(mRoot, "sys/block/" + link[0]).toPath(),
+                    new File(link[1]).toPath());
+        }
+        assertEquals(mRoot.getPath() + "/sys/block/mmcblk2/stat",
+                new PowerMenuStatsReader(mRoot.getPath(), "ff390000.dwmmc").storagePath());
+        assertEquals(mRoot.getPath() + "/sys/block/mmcblk0/stat",
+                new PowerMenuStatsReader(mRoot.getPath(), "ff370000.dwmmc").storagePath());
+        // unknown boot device: the SD card, as before
+        assertEquals(mRoot.getPath() + "/sys/block/mmcblk0/stat",
+                new PowerMenuStatsReader(mRoot.getPath(), "").storagePath());
+    }
+
     private void write(String path, String text) throws IOException {
         final File file = new File(mRoot, path);
         file.getParentFile().mkdirs();

@@ -16,6 +16,8 @@
 
 package com.android.systemui.globalactions;
 
+import android.os.SystemProperties;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -70,6 +72,7 @@ final class PowerMenuStatsReader {
     boolean zramOn;
 
     private final String mRoot;
+    private final String mStoragePath;
     private final String mGpuFreqPath;
     private final String mTempPath;
     private final String mBatteryPath;
@@ -87,7 +90,13 @@ final class PowerMenuStatsReader {
 
     /** @param root prefix for every path, "" on the device, a fake tree in tests */
     PowerMenuStatsReader(String root) {
+        this(root, SystemProperties.get("ro.boot.boot_devices", ""));
+    }
+
+    /** @param bootDevices androidboot.boot_devices: where Android started from */
+    PowerMenuStatsReader(String root, String bootDevices) {
         mRoot = root;
+        mStoragePath = findStorage(bootDevices);
         mGpuFreqPath = findGpuFreq();
         mTempPath = findTemperature();
         mBatteryPath = findBattery();
@@ -128,6 +137,7 @@ final class PowerMenuStatsReader {
     private PowerMenuStatsReader(String root, String gpuFreqPath, String tempPath,
             String batteryPath) {
         mRoot = root;
+        mStoragePath = root + STORAGE_STAT;
         mGpuFreqPath = gpuFreqPath;
         mTempPath = tempPath;
         mBatteryPath = batteryPath;
@@ -151,7 +161,7 @@ final class PowerMenuStatsReader {
                 : positiveOrMinusOne(readInt(mGpuFreqPath, 1000000));
         final int milliC = mTempPath == null ? Integer.MIN_VALUE : readInt(mTempPath, 1);
         tempC = milliC == Integer.MIN_VALUE || milliC < 0 ? Float.NaN : milliC / 1000f;
-        sampleStorage(read(mRoot + STORAGE_STAT), System.nanoTime() / 1000000);
+        sampleStorage(read(mStoragePath), System.nanoTime() / 1000000);
         sampleBattery();
         sampleRam(read(mRoot + "/proc/meminfo"));
     }
@@ -197,6 +207,38 @@ final class PowerMenuStatsReader {
         mLastIoTicks = ticks;
         mLastIoSectors = sectors;
         mLastIoTime = nowMs;
+    }
+
+    /** The storage stat file this reader samples (tests). */
+    String storagePath() {
+        return mStoragePath;
+    }
+
+    /**
+     * The stat file of the disk Android started from: the SD card's, or the built-in eMMC's
+     * for andr36oid installed there. Its sysfs path has the boot device's name in it.
+     */
+    private String findStorage(String bootDevices) {
+        final File[] disks = new File(mRoot + "/sys/block").listFiles();
+        if (disks != null && !bootDevices.isEmpty()) {
+            for (File disk : disks) {
+                // mmcblkN, not its boot areas (mmcblkNboot0) or rpmb
+                if (!disk.getName().matches("mmcblk\\d+")) {
+                    continue;
+                }
+                try {
+                    final String path = disk.getCanonicalPath();
+                    for (String dev : bootDevices.split(",")) {
+                        if (!dev.isEmpty() && path.contains("/" + dev + "/")) {
+                            return disk.getPath() + "/stat";
+                        }
+                    }
+                } catch (IOException e) {
+                    // not this one
+                }
+            }
+        }
+        return mRoot + STORAGE_STAT;
     }
 
     /** Busy share of all cores since the last sample, from the first line of /proc/stat. */
