@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="qs_edit_controller_hint">A: 移動または追加  ·  X: 削除  ·  B: 完了</string>
+    <string name="qs_edit_controller_move_hint">移動先に合わせて A を押す  ·  B: キャンセル</string>
+</resources>

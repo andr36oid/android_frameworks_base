@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_shade_hint_close">閉じる</string>
+    <string name="andr36oid_shade_hint_details">詳細</string>
+    <string name="andr36oid_shade_hint_dismiss">消去</string>
+    <string name="andr36oid_shade_hint_options">オプション</string>
+    <string name="andr36oid_shade_hint_select">選択</string>
+    <string name="andr36oid_shade_hint_tile_settings">設定</string>
+    <string name="andr36oid_shade_hint_to_notifications">通知</string>
+    <string name="andr36oid_shade_hint_to_tiles">タイル</string>
+    <string name="andr36oid_shade_hint_toggle">切り替え</string>
+</resources>

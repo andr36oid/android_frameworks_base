@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_repair_message">このカードは安全に取り外されませんでした。修復には数分かかり、完了するまで本体の動作が遅くなります。次からは、取り出す前に本体の電源を切るか、カードを取り出してください。</string>
+    <string name="andr36oid_repair_title">%1$s (%2$s) を修復しています…</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="andr36oid_card_held"><xliff:g id="name" example="EASYROMS">%1$s</xliff:g> を検出しました。初期設定が完了すると、マウントされます…</string>
+    <string name="andr36oid_card_held_sd_card">SDカード</string>
+    <string name="andr36oid_cards_released">初期設定が完了しました。追加のストレージをマウントしています</string>
+</resources>

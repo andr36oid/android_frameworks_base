@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="global_action_app_switcher">アプリ切り替え</string>
+    <string name="global_action_app_switcher_empty">ほかに開いているアプリはありません</string>
+    <string name="global_action_close_apps">バックグラウンドのアプリを閉じる</string>
+    <plurals name="global_action_close_apps_done">
+        <item quantity="other"><xliff:g id="count" example="3">%d</xliff:g> 個のバックグラウンドアプリを閉じました</item>
+    </plurals>
+    <string name="global_action_close_apps_none">閉じられるバックグラウンドアプリはありません</string>
+    <string name="global_action_home">ホーム</string>
+    <string name="global_action_kill_app">フォアグラウンドのアプリを強制終了 (<xliff:g id="app" example="RetroArch">%1$s</xliff:g>)</string>
+    <string name="global_action_kill_app_done"><xliff:g id="app" example="RetroArch">%1$s</xliff:g> を強制終了しました</string>
+    <string name="global_action_long_press_hint">長押し</string>
+</resources>

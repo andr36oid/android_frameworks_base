@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="screenrecord_hotkey_cancelled">画面録画をキャンセルしました</string>
+    <string name="screenrecord_hotkey_starting">3秒後に画面録画を開始します。FN + R2 で停止できます。</string>
+    <string name="screenrecord_hotkey_stopped">画面録画を停止しました。Movies に保存しています。</string>
+</resources>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="bluetooth_no_usb_controller">Bluetooth を使うには、USB Bluetooth アダプターを接続してください</string>
+</resources>

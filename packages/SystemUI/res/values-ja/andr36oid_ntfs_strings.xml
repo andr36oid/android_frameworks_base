@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_ntfs_read_only_message">このドライブは読み取り専用です。Windows PC で使われていた場合、正しく取り外されていなかった可能性があります。PC で「高速スタートアップ」をオフにするか、「ハードウェアの安全な取り外し」を使ってから、もう一度お試しください。</string>
+</resources>

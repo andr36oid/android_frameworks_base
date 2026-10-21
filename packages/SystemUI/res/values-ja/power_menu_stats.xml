@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="global_actions_stats_bat">電池</string>
+    <string name="global_actions_stats_cpu">CPU</string>
+    <string name="global_actions_stats_description">直近10分間のシステム情報</string>
+    <string name="global_actions_stats_ram">RAM</string>
+    <string name="global_actions_stats_ram_apps">アプリ</string>
+    <string name="global_actions_stats_ram_cache">キャッシュ</string>
+    <string name="global_actions_stats_ram_kernel">カーネル</string>
+    <string name="global_actions_stats_ram_other">その他</string>
+    <string name="global_actions_stats_temp">温度</string>
+    <string name="global_actions_stats_zram">✓ ZRAM オン</string>
+</resources>

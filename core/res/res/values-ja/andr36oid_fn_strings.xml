@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="button_remap_reset">すべてのボタンが通常に戻りました</string>
+    <string name="fn_help_brightness">画面を明るく / 暗くする</string>
+    <string name="fn_help_continue">最後のゲームを続ける</string>
+    <string name="fn_help_footer">FN を離すと閉じます。FN だけを押すとホーム画面に戻ります。</string>
+    <string name="fn_help_joystick_mouse">ジョイスティックマウス</string>
+    <string name="fn_help_last_app">最後に使ったアプリに戻る</string>
+    <string name="fn_help_next_profile">次のパフォーマンスプロファイル</string>
+    <string name="fn_help_percent"><xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
+    <string name="fn_help_perf_overlay">パフォーマンスオーバーレイ</string>
+    <string name="fn_help_quick_settings">クイック設定</string>
+    <string name="fn_help_screenshot">スクリーンショット</string>
+    <string name="fn_help_state_on">オン</string>
+    <string name="fn_help_title">FN ショートカット</string>
+    <string name="fn_help_touch_editor">タッチ操作エディター</string>
+    <string name="fn_toast_brightness">明るさ <xliff:g id="percent" example="60">%1$d</xliff:g>%%</string>
+    <string name="fn_toast_no_other_app">切り替えられるほかのアプリがありません</string>
+</resources>
