@@ -214,7 +214,7 @@ private:
     std::string mLogReason;
     GLuint      mResizeTexture = 0;
     int         mResizeHeight = 0;
-    const char* mResizeShown = nullptr;
+    std::string mResizeShown;
     bool        mStagesChecked = false;
     bool        mStageBar = false;
     bool        mStageText = false;

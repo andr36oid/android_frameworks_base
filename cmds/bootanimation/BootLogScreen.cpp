@@ -86,6 +86,11 @@ constexpr const char* kResizeText = "Resizing SD card ...";      // sys.andr36oi
 constexpr const char* kReclaimText = "Cleaning up first boot partitions ..."; // =2
 // =3: the Magisk app was updated, root is rebuilt to match (gameconsole-setup magisk)
 constexpr const char* kMagiskText = "Rebuilding Magisk RAM disk ...";
+// andr36oid-datacard: sys.andr36oid.datacard_wait=<seconds left> while it waits for the SD
+// card an eMMC install keeps Android's data on
+constexpr const char* kDataCardProp = "sys.andr36oid.datacard_wait";
+#define DATACARD_TEXT \
+        "Waiting for storage SD card ...\nInsert the card with your data. Turning off in %d:%02d"
 constexpr const char* kResizeFontFile = "/system/fonts/Roboto-Regular.ttf";
 constexpr SkColor kResizeColor = SkColorSetRGB(0x8c, 0x8c, 0x8c);
 
@@ -526,8 +531,16 @@ void BootAnimation::drawBootNotes(int x, int y, int w, int h) {
     if (mStageBar || mStageText) updateBootStage(now);
 
     char value[PROPERTY_VALUE_MAX];
+    // An eMMC install waiting for its data card (andr36oid-datacard): the seconds left
+    property_get(kDataCardProp, value, "0");
+    const int waitLeft = atoi(value);
+    char waitText[160];
+    if (waitLeft > 0) {
+        snprintf(waitText, sizeof(waitText), DATACARD_TEXT, waitLeft / 60, waitLeft % 60);
+    }
     property_get(kResizeProp, value, "0");
-    const char* text = strcmp(value, "1") == 0 ? kResizeText
+    const char* text = waitLeft > 0 ? waitText
+            : strcmp(value, "1") == 0 ? kResizeText
             : strcmp(value, "2") == 0 ? kReclaimText
             : strcmp(value, "3") == 0 ? kMagiskText : nullptr;
     if (text == nullptr && mStageText && mStage >= 0) text = kStages[mStage].text;
@@ -535,7 +548,8 @@ void BootAnimation::drawBootNotes(int x, int y, int w, int h) {
     const int top = y + h * 2 / 3 + h / 30;
     const int fontSize = std::max(12, h / 24);
     if (text != nullptr) drawNoticeLine(text, x, top, w, fontSize);
-    if (mStageBar) drawProgressBar(x, top + fontSize * 2, w, now);
+    // the wait has two lines where the bar would go
+    if (mStageBar && waitLeft <= 0) drawProgressBar(x, top + fontSize * 2, w, now);
 }
 
 // A stage's usual length. The first start adds the resize and the format to the first
@@ -625,13 +639,22 @@ void BootAnimation::drawNoticeLine(const char* text, int x, int top, int w, int 
     }
     if (mResizeTexture == 0) {
         mResizeShown = text;
+        // lines: "\n" starts the next one, each centered
+        std::vector<std::string> lines;
+        for (size_t at = 0;;) {
+            const size_t nl = mResizeShown.find('\n', at);
+            lines.push_back(mResizeShown.substr(at, nl == std::string::npos ? nl : nl - at));
+            if (nl == std::string::npos) break;
+            at = nl + 1;
+        }
         sk_sp<SkTypeface> face = SkTypeface::MakeFromFile(kResizeFontFile);
         if (face == nullptr) face = SkTypeface::MakeDefault();
         SkFont font(face, fontSize);
         font.setEdging(SkFont::Edging::kAntiAlias);
         SkFontMetrics metrics;
         font.getMetrics(&metrics);
-        const int th = std::max(1, (int)ceilf((metrics.fDescent - metrics.fAscent) * 1.4f));
+        const int lh = std::max(1, (int)ceilf((metrics.fDescent - metrics.fAscent) * 1.4f));
+        const int th = lh * (int)lines.size();
 
         SkBitmap bitmap;
         bitmap.allocPixels(SkImageInfo::Make(w, th, kRGBA_8888_SkColorType, kOpaque_SkAlphaType));
@@ -640,9 +663,13 @@ void BootAnimation::drawNoticeLine(const char* text, int x, int top, int w, int 
         SkPaint paint;
         paint.setAntiAlias(true);
         paint.setColor(kResizeColor);
-        const SkScalar tw = font.measureText(text, strlen(text), SkTextEncoding::kUTF8);
-        canvas.drawString(text, (w - tw) / 2, (th - metrics.fDescent - metrics.fAscent) / 2,
-                font, paint);
+        for (size_t i = 0; i < lines.size(); i++) {
+            const std::string& line = lines[i];
+            const SkScalar tw = font.measureText(line.c_str(), line.size(),
+                    SkTextEncoding::kUTF8);
+            canvas.drawString(line.c_str(), (w - tw) / 2,
+                    lh * (int)i + (lh - metrics.fDescent - metrics.fAscent) / 2, font, paint);
+        }
 
         // The same texture setup as the boot log's
         bool npot = false;
@@ -671,7 +698,7 @@ void BootAnimation::drawNoticeLine(const char* text, int x, int top, int w, int 
         GLint crop[4] = { 0, th, w, -th };
         glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_CROP_RECT_OES, crop);
         mResizeHeight = th;
-        ALOGI("showing \"%s\"", text);
+        ALOGI("showing \"%s\"", mResizeShown.c_str());
     } else {
         glBindTexture(GL_TEXTURE_2D, mResizeTexture);
     }
