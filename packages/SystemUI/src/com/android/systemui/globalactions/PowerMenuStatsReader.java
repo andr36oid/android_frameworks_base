@@ -38,6 +38,8 @@ final class PowerMenuStatsReader {
 
     static final String STORAGE_STAT = "/sys/block/mmcblk0/stat";
 
+    static final String DATA_CARD_LINK = "/dev/block/by-name/a36data";
+
     /** -1 or NaN where a value couldn't be read. */
     int cpuPercent = -1;
     int cpuMhz = -1;
@@ -70,21 +72,28 @@ final class PowerMenuStatsReader {
     int storageDirection;
     /** The storage is the built-in eMMC (an eMMC install), not the SD card. */
     boolean storageEmmc;
+    /**
+     * An eMMC install keeps Android's data on an SD card (androidboot.datacard): the
+     * dataCard values are that card's, shown as a second storage graph.
+     */
+    boolean hasDataCard;
+    int dataCardPercent = -1;
+    long dataCardBytesPerSec = -1;
+    int dataCardDirection;
     /** Swap is set up, which on this console is only the zram device from the fstab. */
     boolean zramOn;
 
     private final String mRoot;
     private final String mStoragePath;
+    private final String mDataCardPath;
     private final String mGpuFreqPath;
     private final String mTempPath;
     private final String mBatteryPath;
 
     private long mLastCpuBusy = -1;
     private long mLastCpuTotal;
-    private long mLastIoTicks = -1;
-    private long mLastIoTime;
-    private long mLastIoSectors = -1;
-    private long mLastIoRead;
+    private final DiskIo mStorageIo = new DiskIo();
+    private final DiskIo mDataCardIo = new DiskIo();
 
     PowerMenuStatsReader() {
         this("");
@@ -92,13 +101,19 @@ final class PowerMenuStatsReader {
 
     /** @param root prefix for every path, "" on the device, a fake tree in tests */
     PowerMenuStatsReader(String root) {
-        this(root, SystemProperties.get("ro.boot.boot_devices", ""));
+        this(root, SystemProperties.get("ro.boot.boot_devices", ""),
+                !SystemProperties.get("ro.boot.datacard", "").isEmpty());
     }
 
-    /** @param bootDevices androidboot.boot_devices: where Android started from */
-    PowerMenuStatsReader(String root, String bootDevices) {
+    /**
+     * @param bootDevices androidboot.boot_devices: where Android started from
+     * @param dataCard Android's data is on an SD card (androidboot.datacard)
+     */
+    PowerMenuStatsReader(String root, String bootDevices, boolean dataCard) {
         mRoot = root;
         mStoragePath = findStorage(bootDevices);
+        mDataCardPath = dataCard ? findDataCard() : null;
+        hasDataCard = mDataCardPath != null;
         // device/type next to the stat file: "MMC" for the eMMC, "SD" for a card
         final String type = read(new File(mStoragePath).getParent() + "/device/type");
         storageEmmc = type != null && type.trim().equals("MMC");
@@ -136,6 +151,10 @@ final class PowerMenuStatsReader {
         copy.storageDirection = storageDirection;
         copy.zramOn = zramOn;
         copy.storageEmmc = storageEmmc;
+        copy.hasDataCard = hasDataCard;
+        copy.dataCardPercent = dataCardPercent;
+        copy.dataCardBytesPerSec = dataCardBytesPerSec;
+        copy.dataCardDirection = dataCardDirection;
         return copy;
     }
 
@@ -144,6 +163,7 @@ final class PowerMenuStatsReader {
             String batteryPath) {
         mRoot = root;
         mStoragePath = root + STORAGE_STAT;
+        mDataCardPath = null;
         mGpuFreqPath = gpuFreqPath;
         mTempPath = tempPath;
         mBatteryPath = batteryPath;
@@ -153,11 +173,14 @@ final class PowerMenuStatsReader {
     void reset() {
         mLastCpuBusy = -1;
         cpuPercent = -1;
-        mLastIoTicks = -1;
+        mStorageIo.reset();
         storagePercent = -1;
-        mLastIoSectors = -1;
         storageBytesPerSec = -1;
         storageDirection = 0;
+        mDataCardIo.reset();
+        dataCardPercent = -1;
+        dataCardBytesPerSec = -1;
+        dataCardDirection = 0;
     }
 
     void sample() {
@@ -167,7 +190,9 @@ final class PowerMenuStatsReader {
                 : positiveOrMinusOne(readInt(mGpuFreqPath, 1000000));
         final int milliC = mTempPath == null ? Integer.MIN_VALUE : readInt(mTempPath, 1);
         tempC = milliC == Integer.MIN_VALUE || milliC < 0 ? Float.NaN : milliC / 1000f;
-        sampleStorage(read(mStoragePath), System.nanoTime() / 1000000);
+        final long nowMs = System.nanoTime() / 1000000;
+        sampleStorage(read(mStoragePath), nowMs);
+        if (mDataCardPath != null) sampleDataCard(read(mDataCardPath), nowMs);
         sampleBattery();
         sampleRam(read(mRoot + "/proc/meminfo"));
     }
@@ -177,42 +202,81 @@ final class PowerMenuStatsReader {
      * field 10 of its stat file (io_ticks, milliseconds spent doing I/O) over the wall clock.
      */
     void sampleStorage(String stat, long nowMs) {
-        final String[] fields = stat == null ? new String[0] : stat.trim().split("\\s+");
-        long ticks = -1;
-        long sectors = -1;
-        long read = 0;
-        try {
-            if (fields.length > 9) {
-                ticks = Long.parseLong(fields[9]);
-                // sectors read (field 3) and written (field 7), 512 bytes each
-                read = Long.parseLong(fields[2]);
-                sectors = read + Long.parseLong(fields[6]);
+        mStorageIo.sample(stat, nowMs);
+        storagePercent = mStorageIo.percent;
+        storageBytesPerSec = mStorageIo.bytesPerSec;
+        storageDirection = mStorageIo.direction;
+    }
+
+    /** The same for the data card of an eMMC install, see {@link #hasDataCard}. */
+    void sampleDataCard(String stat, long nowMs) {
+        mDataCardIo.sample(stat, nowMs);
+        dataCardPercent = mDataCardIo.percent;
+        dataCardBytesPerSec = mDataCardIo.bytesPerSec;
+        dataCardDirection = mDataCardIo.direction;
+    }
+
+    /** One disk's busy share and speed between two looks at its stat file. */
+    private static final class DiskIo {
+        int percent = -1;
+        long bytesPerSec = -1;
+        int direction;
+        private long lastTicks = -1;
+        private long lastTime;
+        private long lastSectors = -1;
+        private long lastRead;
+
+        void sample(String stat, long nowMs) {
+            final String[] fields = stat == null ? new String[0] : stat.trim().split("\\s+");
+            long ticks = -1;
+            long sectors = -1;
+            long read = 0;
+            try {
+                if (fields.length > 9) {
+                    ticks = Long.parseLong(fields[9]);
+                    // sectors read (field 3) and written (field 7), 512 bytes each
+                    read = Long.parseLong(fields[2]);
+                    sectors = read + Long.parseLong(fields[6]);
+                }
+            } catch (NumberFormatException e) {
+                ticks = -1;
             }
-        } catch (NumberFormatException e) {
-            ticks = -1;
+            if (ticks < 0 || sectors < 0) {
+                percent = -1;
+                bytesPerSec = -1;
+                direction = 0;
+                lastTicks = -1;
+                lastSectors = -1;
+                return;
+            }
+            if (lastTicks >= 0 && nowMs > lastTime && ticks >= lastTicks
+                    && sectors >= lastSectors) {
+                final long ms = nowMs - lastTime;
+                percent = (int) Math.max(0, Math.min(100,
+                        100 * (ticks - lastTicks) / ms));
+                bytesPerSec = (sectors - lastSectors) * 512 * 1000 / ms;
+                final long readNow = read - lastRead;
+                final long writtenNow = sectors - lastSectors - readNow;
+                direction = readNow > writtenNow ? 1 : writtenNow > readNow ? -1 : 0;
+            }
+            lastRead = read;
+            lastTicks = ticks;
+            lastSectors = sectors;
+            lastTime = nowMs;
         }
-        if (ticks < 0 || sectors < 0) {
-            storagePercent = -1;
-            storageBytesPerSec = -1;
-            storageDirection = 0;
-            mLastIoTicks = -1;
-            mLastIoSectors = -1;
-            return;
+
+        void reset() {
+            lastTicks = -1;
+            lastSectors = -1;
+            percent = -1;
+            bytesPerSec = -1;
+            direction = 0;
         }
-        if (mLastIoTicks >= 0 && nowMs > mLastIoTime && ticks >= mLastIoTicks
-                && sectors >= mLastIoSectors) {
-            final long ms = nowMs - mLastIoTime;
-            storagePercent = (int) Math.max(0, Math.min(100,
-                    100 * (ticks - mLastIoTicks) / ms));
-            storageBytesPerSec = (sectors - mLastIoSectors) * 512 * 1000 / ms;
-            final long readNow = read - mLastIoRead;
-            final long writtenNow = sectors - mLastIoSectors - readNow;
-            storageDirection = readNow > writtenNow ? 1 : writtenNow > readNow ? -1 : 0;
-        }
-        mLastIoRead = read;
-        mLastIoTicks = ticks;
-        mLastIoSectors = sectors;
-        mLastIoTime = nowMs;
+    }
+
+    /** The data card's stat file, null without one (tests). */
+    String dataCardPath() {
+        return mDataCardPath;
     }
 
     /** The storage stat file this reader samples (tests). */
@@ -245,6 +309,25 @@ final class PowerMenuStatsReader {
             }
         }
         return mRoot + STORAGE_STAT;
+    }
+
+    /**
+     * The stat file of the data card's disk: andr36oid-datacard links its data partition
+     * as /dev/block/by-name/a36data (mmcblk1p6: mmcblk1's stat). Null if it isn't there.
+     */
+    private String findDataCard() {
+        try {
+            final String part = new File(mRoot + DATA_CARD_LINK).getCanonicalFile().getName();
+            final java.util.regex.Matcher m =
+                    java.util.regex.Pattern.compile("(mmcblk\\d+)p\\d+").matcher(part);
+            if (m.matches()) {
+                final File stat = new File(mRoot + "/sys/block/" + m.group(1) + "/stat");
+                if (stat.exists()) return stat.getPath();
+            }
+        } catch (IOException e) {
+            // no card linked
+        }
+        return null;
     }
 
     /** Busy share of all cores since the last sample, from the first line of /proc/stat. */

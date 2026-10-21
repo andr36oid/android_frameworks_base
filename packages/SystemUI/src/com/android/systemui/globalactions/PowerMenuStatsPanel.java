@@ -45,6 +45,8 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
     private Cell mBattery;
     private Cell mRam;
     private Cell mStorage;
+    private View mDataCardView;
+    private Cell mDataCard;
     private TextView mZram;
     private TextView mRamLegend;
     // The RAM graph's layers, lowest first: apps, kernel, the rest of the used RAM, cache
@@ -91,6 +93,8 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         mBattery = new Cell(findViewById(R.id.global_actions_stats_bat));
         mRam = new Cell(findViewById(R.id.global_actions_stats_ram));
         mStorage = new Cell(findViewById(R.id.global_actions_stats_storage));
+        mDataCardView = findViewById(R.id.global_actions_stats_datacard);
+        mDataCard = new Cell(mDataCardView);
         mZram = findViewById(R.id.global_actions_stats_zram);
         mRamLegend = findViewById(R.id.global_actions_stats_ram_legend);
         showRamLegend();
@@ -152,6 +156,10 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         showRamLayers(history, capacity);
         showGraph(mStorage, history, PowerMenuStatsSampler.SERIES_STORAGE, capacity,
                 0f, 100f, 0f);
+        if (s.hasDataCard) {
+            showGraph(mDataCard, history, PowerMenuStatsSampler.SERIES_DATA_CARD, capacity,
+                    0f, 100f, 0f);
+        }
         showNumbers(s, maxTemp);
     }
 
@@ -214,18 +222,15 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 PowerMenuStatsFormat.ramValue(s.ramPercent),
                 PowerMenuStatsFormat.ramLevel(s.ramPercent),
                 PowerMenuStatsFormat.ramExtra(s.ramUsedMb, s.ramTotalMb));
-        // SD   12% 3.4MB/s (how busy the card was, what it read and wrote together)
-        show(mStorage, s.storageEmmc ? R.string.global_actions_stats_storage_emmc
-                : R.string.global_actions_stats_storage,
-                PowerMenuStatsFormat.storageValue(s.storagePercent),
-                PowerMenuStatsFormat.storageLevel(s.storagePercent),
-                PowerMenuStatsFormat.storageExtra(s.storageBytesPerSec));
-        // ↑ green while it mostly reads, ↓ red while it mostly writes
-        final String arrow = PowerMenuStatsFormat.storageArrow(s.storageDirection);
-        if (!arrow.isEmpty() && s.storageBytesPerSec > 0) {
-            final SpannableStringBuilder sd = new SpannableStringBuilder(mStorage.text.getText());
-            append(sd, arrow, colorOf(PowerMenuStatsFormat.storageArrowLevel(s.storageDirection)));
-            mStorage.text.setText(sd);
+        // SD   12% 3.4MB/s (how busy the card was, what it read and wrote together). With a
+        // data card the eMMC and the card share the column, so only how busy each is.
+        showStorage(mStorage, s.storageEmmc ? R.string.global_actions_stats_storage_emmc
+                : R.string.global_actions_stats_storage, s.storagePercent,
+                s.storageBytesPerSec, s.storageDirection, !s.hasDataCard);
+        mDataCardView.setVisibility(s.hasDataCard ? VISIBLE : GONE);
+        if (s.hasDataCard) {
+            showStorage(mDataCard, R.string.global_actions_stats_storage, s.dataCardPercent,
+                    s.dataCardBytesPerSec, s.dataCardDirection, false);
         }
         // ✓ ZRAM on, under the RAM graph; hidden (keeping its space) while there is no swap
         mZram.setVisibility(s.zramOn ? VISIBLE : INVISIBLE);
@@ -236,6 +241,23 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
      * the color of its level, the extra in the value color. The graph takes the level's
      * color too, or the label color while the value is unremarkable.
      */
+    /**
+     * A disk: how busy, the speed if speed (no room for it with two disks), ↑ green while
+     * it mostly reads, ↓ red while it mostly writes.
+     */
+    private void showStorage(Cell cell, int label, int percent, long bytesPerSec,
+            int direction, boolean speed) {
+        show(cell, label, PowerMenuStatsFormat.storageValue(percent),
+                PowerMenuStatsFormat.storageLevel(percent),
+                speed ? PowerMenuStatsFormat.storageExtra(bytesPerSec) : "");
+        final String arrow = PowerMenuStatsFormat.storageArrow(direction);
+        if (!arrow.isEmpty() && bytesPerSec > 0) {
+            final SpannableStringBuilder sd = new SpannableStringBuilder(cell.text.getText());
+            append(sd, arrow, colorOf(PowerMenuStatsFormat.storageArrowLevel(direction)));
+            cell.text.setText(sd);
+        }
+    }
+
     private void show(Cell cell, int label, String value, int level, String extra) {
         final int valueColor = colorOf(level);
         final SpannableStringBuilder out = new SpannableStringBuilder();

@@ -18,6 +18,7 @@ package com.android.systemui.globalactions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
@@ -351,17 +352,37 @@ public class PowerMenuStatsTest {
                     new File(link[1]).toPath());
         }
         final PowerMenuStatsReader emmcStart =
-                new PowerMenuStatsReader(mRoot.getPath(), "ff390000.dwmmc");
+                new PowerMenuStatsReader(mRoot.getPath(), "ff390000.dwmmc", false);
         assertEquals(mRoot.getPath() + "/sys/block/mmcblk2/stat", emmcStart.storagePath());
         assertTrue(emmcStart.storageEmmc);
         assertTrue(emmcStart.snapshot().storageEmmc);
         final PowerMenuStatsReader sdStart =
-                new PowerMenuStatsReader(mRoot.getPath(), "ff370000.dwmmc");
+                new PowerMenuStatsReader(mRoot.getPath(), "ff370000.dwmmc", false);
         assertEquals(mRoot.getPath() + "/sys/block/mmcblk0/stat", sdStart.storagePath());
         assertFalse(sdStart.storageEmmc);
         // unknown boot device: the SD card, as before
         assertEquals(mRoot.getPath() + "/sys/block/mmcblk0/stat",
-                new PowerMenuStatsReader(mRoot.getPath(), "").storagePath());
+                new PowerMenuStatsReader(mRoot.getPath(), "", false).storagePath());
+
+        // an eMMC install with its data on the card in slot 1: a second graph for it
+        assertNull(emmcStart.dataCardPath());
+        assertFalse(new PowerMenuStatsReader(mRoot.getPath(), "ff390000.dwmmc", true)
+                .hasDataCard);
+        write("dev/block/mmcblk0p6", "");
+        new File(mRoot, "dev/block/by-name").mkdirs();
+        Files.createSymbolicLink(new File(mRoot, "dev/block/by-name/a36data").toPath(),
+                new File(mRoot, "dev/block/mmcblk0p6").toPath());
+        final PowerMenuStatsReader dataCard =
+                new PowerMenuStatsReader(mRoot.getPath(), "ff390000.dwmmc", true);
+        assertTrue(dataCard.hasDataCard);
+        assertTrue(dataCard.snapshot().hasDataCard);
+        assertEquals(mRoot.getPath() + "/sys/block/mmcblk2/stat", dataCard.storagePath());
+        assertEquals(mRoot.getPath() + "/sys/block/mmcblk0/stat", dataCard.dataCardPath());
+        dataCard.sampleDataCard("100 0 1000 50 20 0 1000 30 0 10 0 0\n", 10000);
+        dataCard.sampleDataCard("100 0 5000 50 20 0 1000 30 0 510 0 0\n", 11000);
+        assertEquals(50, dataCard.dataCardPercent);
+        assertEquals(1, dataCard.dataCardDirection);
+        assertEquals(-1, dataCard.storagePercent);
     }
 
     private void write(String path, String text) throws IOException {

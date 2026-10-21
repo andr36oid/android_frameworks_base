@@ -384,8 +384,26 @@ public class StorageNotification extends SystemUI {
      * The card Android runs from. Its volume's block device (public:179,7 is 179:7) sits
      * in sysfs under the controller Android started from (ro.boot.boot_devices, e.g.
      * ff370000.dwmmc). Not just disk:179,0: the volume can come without its disk, and
-     * with the built-in eMMC switched on the numbers can move.
+     * with the built-in eMMC switched on the numbers can move. On an eMMC install with
+     * its data on an SD card, that card too.
      */
+    /**
+     * The disk an eMMC install keeps Android's data on (androidboot.datacard), such as
+     * mmcblk1: andr36oid-datacard links its data partition as /dev/block/by-name/a36data.
+     */
+    private static String dataCardDisk() {
+        if (SystemProperties.get("ro.boot.datacard", "").isEmpty()) return null;
+        try {
+            final String part = new File("/dev/block/by-name/a36data").getCanonicalFile()
+                    .getName();
+            final int p = part.lastIndexOf('p');
+            return part.startsWith("mmcblk") && p > "mmcblk".length() ? part.substring(0, p)
+                    : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
     private static boolean isOsCard(VolumeInfo vol) {
         final String id = vol.getId();
         final String boot = SystemProperties.get("ro.boot.boot_devices", "");
@@ -397,7 +415,9 @@ public class StorageNotification extends SystemUI {
                     for (String b : boot.split("[,\\s]+")) {
                         if (!b.isEmpty() && path.contains("/" + b + "/")) return true;
                     }
-                    return false;
+                    // an eMMC install's data card holds /data: ejecting it would pull that
+                    final String dataDisk = dataCardDisk();
+                    return dataDisk != null && path.contains("/block/" + dataDisk + "/");
                 }
             } catch (IOException e) {
                 Log.w(TAG, "Can't find " + id + " in sysfs", e);
