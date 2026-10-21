@@ -28,6 +28,8 @@ import android.opengl.EGLSurface;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 import android.os.IBinder;
+import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.util.Slog;
 import android.view.Display;
 import android.view.DisplayInfo;
@@ -107,6 +109,11 @@ final class ColorFade {
     private final int[] mGLBuffers = new int[2];
     private int mTexCoordLoc, mVertexLoc, mTexUnitLoc, mProjMatrixLoc, mTexMatrixLoc;
     private int mOpacityLoc, mGammaLoc;
+    private int mCrtLocP, mCrtLocTime, mCrtLocAspect, mCrtLocRotated, mCrtLocShape;
+    private int mCrtLocFlash, mCrtLocAfterglow, mCrtLocTear, mCrtLocSplit, mCrtLocNoise;
+    private int mCrtLocRoll, mCrtLocFlicker, mCrtLocTint;
+    private boolean mRotated;
+    private long mCrtStart;
     private int mProgram;
 
     // Vertex and corresponding texture coordinates.
@@ -130,6 +137,111 @@ final class ColorFade {
      * Animates a simple dim layer to fade the contents of the screen in or out progressively.
      */
     public static final int MODE_FADE = 2;
+
+    /**
+     * andr36oid: an old TV switching off. The picture collapses into a bright line and a
+     * dot that fades, with optional glitches, all set in Settings > Display > CRT effect
+     * (persist.andr36oid.crtoff.*). Low-RAM consoles get this one even though they
+     * otherwise skip the colour fade.
+     */
+    public static final int MODE_CRT = 3;
+
+    /** persist.andr36oid.crtoff.style: what the screen does when it switches off */
+    public static final int OFF_NONE = 0;
+    public static final int OFF_FADE = 1;
+    public static final int OFF_CRT = 2;
+
+    private static final String CRT_PROP = "persist.andr36oid.crtoff.";
+
+    /** line, dot and glow colours: white, andr36oid orange, green, amber, blue */
+    private static final float[][] CRT_TINTS = {
+        {1f, 1f, 1f}, {1f, 0.55f, 0.15f}, {0.45f, 1f, 0.55f}, {1f, 0.75f, 0.3f}, {0.6f, 0.8f, 1f},
+    };
+
+    public static int offStyle() {
+        return SystemProperties.getInt(CRT_PROP + "style", OFF_NONE);
+    }
+
+    /** How long the switch-off animation runs, in ms. */
+    public static int offLengthMillis() {
+        return Math.max(150, Math.min(5000, SystemProperties.getInt(CRT_PROP + "length", 700)));
+    }
+
+    private static float crtProp(String name, int def) {
+        return Math.max(0, Math.min(100, SystemProperties.getInt(CRT_PROP + name, def))) / 100f;
+    }
+
+    private static final String CRT_VERT =
+            "uniform mat4 proj_matrix;\n"
+            + "attribute vec2 position;\n"
+            + "attribute vec2 uv;\n"
+            + "varying vec2 POS;\n"
+            + "void main() {\n"
+            + "    POS = uv;\n"
+            + "    gl_Position = proj_matrix * vec4(position.x, position.y, 0.0, 1.0);\n"
+            + "}\n";
+
+    // p runs from 0 (the picture) to 1 (black). The picture squashes into a line (A),
+    // the line shrinks into a dot (B), what is left fades (C). Glitches mostly hit the
+    // picture while it is still there.
+    private static final String CRT_FRAG =
+            "#extension GL_OES_EGL_image_external : require\n"
+            + "precision highp float;\n"
+            + "uniform samplerExternalOES texUnit;\n"
+            + "uniform mat4 tex_matrix;\n"
+            + "uniform float p, time, aspect, rotated, shape, flash, afterglow;\n"
+            + "uniform float tear, split, noise, roll, flicker;\n"
+            + "uniform vec3 tint;\n"
+            + "varying vec2 POS;\n"
+            + "float hash(float n) { return fract(sin(n) * 43758.5453); }\n"
+            + "float hash2(vec2 v) { return fract(sin(dot(v, vec2(12.9898, 78.233))) * 43758.5453); }\n"
+            + "vec3 pic(vec2 u) {\n"
+            + "    vec2 n = rotated > 0.5 ? u.yx : u;\n"
+            + "    vec4 t = tex_matrix * vec4(n, 1.0, 1.0);\n"
+            + "    float in_ = step(0.0, u.x) * step(u.x, 1.0) * step(0.0, u.y) * step(u.y, 1.0);\n"
+            + "    return texture2D(texUnit, t.st / t.q).rgb * in_;\n"
+            + "}\n"
+            + "void main() {\n"
+            + "    vec2 u = rotated > 0.5 ? POS.yx : POS;\n"
+            + "    float a1 = shape < 0.5 ? 0.5 : (shape < 1.5 ? 0.6 : 0.7);\n"
+            + "    float a2 = shape < 0.5 ? 0.75 : a1;\n"
+            + "    float A = clamp(p / a1, 0.0, 1.0);\n"
+            + "    float B = shape < 0.5 ? clamp((p - a1) / (a2 - a1), 0.0, 1.0) : 0.0;\n"
+            + "    float C = clamp((p - a2) / (1.0 - a2), 0.0, 1.0);\n"
+            + "    float k = A * A;\n"
+            + "    float line = 0.004;\n"
+            + "    float hy = mix(0.5, line, k);\n"
+            + "    float hx = 0.5 * (1.0 + 0.06 * A);\n"
+            + "    if (shape > 1.5) hx = mix(0.5, line / aspect, k);\n"
+            + "    else if (shape < 0.5) hx = mix(hx, line / aspect, B * B);\n"
+            + "    // glitches: strongest while the picture is still there, in bursts\n"
+            + "    float gA = (1.0 - smoothstep(0.6, 1.0, A)) * (0.45 + 0.55 * step(0.5, hash(floor(time * 12.0))));\n"
+            + "    vec2 src = 0.5 + (u - 0.5) * vec2(0.5 / hx, 0.5 / hy);\n"
+            + "    float slip = roll * gA * (0.25 * step(0.6, hash(floor(time * 7.0) + 3.0)) * hash(floor(time * 7.0)) + 0.35 * k);\n"
+            + "    float yy = src.y + slip;\n"
+            + "    float bar = mix(1.0, smoothstep(0.0, 0.05, fract(yy)) * smoothstep(0.0, 0.05, 1.0 - fract(yy)), step(0.001, slip));\n"
+            + "    src.y = mix(src.y, fract(yy), step(0.001, slip));\n"
+            + "    float tick = floor(time * 24.0);\n"
+            + "    float row = floor(src.y * 90.0);\n"
+            + "    float rowHit = step(1.0 - 0.4 * tear, hash(row * 1.7 + tick * 3.1));\n"
+            + "    float band = smoothstep(0.08, 0.0, abs(src.y - hash(floor(time * 5.0))));\n"
+            + "    src.x += tear * gA * ((hash(row + tick) - 0.5) * 0.12 * rowHit + 0.06 * band);\n"
+            + "    float off = split * (0.004 + 0.02 * A) * (0.5 + gA);\n"
+            + "    vec3 c = vec3(pic(src + vec2(off, 0.0)).r, pic(src).g, pic(src - vec2(off, 0.0)).b) * bar;\n"
+            + "    c *= 1.0 - flicker * 0.45 * hash(tick + 7.0) * gA;\n"
+            + "    float w = shape < 0.5 || shape > 1.5 ? max(flash * smoothstep(0.5, 1.0, A), flash * step(0.001, B))\n"
+            + "            : flash * smoothstep(0.5, 1.0, A);\n"
+            + "    vec3 core = mix(c * (1.0 + flash * 1.5 * k), tint * (1.0 + flash), w);\n"
+            + "    vec2 q = max(abs(u - 0.5) - vec2(hx, hy), 0.0) * vec2(aspect, 1.0);\n"
+            + "    float d = length(q);\n"
+            + "    float inside = 1.0 - step(0.00001, d);\n"
+            + "    float halo = exp(-d / (0.006 + 0.03 * flash)) * flash * mix(k, 1.0, step(0.001, B + C));\n"
+            + "    vec3 col = inside * core + (1.0 - inside) * halo * tint;\n"
+            + "    col *= pow(1.0 - C, mix(3.0, 0.6, afterglow));\n"
+            + "    float grain = hash2(gl_FragCoord.xy + fract(time * 7.0) * 113.0) - 0.5;\n"
+            + "    col += grain * noise * (0.5 * gA * inside + 0.12 * (1.0 - A));\n"
+            + "    gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);\n"
+            + "}\n";
 
     public ColorFade(int displayId) {
         mDisplayId = displayId;
@@ -156,6 +268,8 @@ final class ColorFade {
         mDisplayLayerStack = displayInfo.layerStack;
         mDisplayWidth = displayInfo.getNaturalWidth();
         mDisplayHeight = displayInfo.getNaturalHeight();
+        mRotated = displayInfo.rotation == Surface.ROTATION_90
+                || displayInfo.rotation == Surface.ROTATION_270;
 
         // Prepare the surface for drawing.
         if (!(createSurface() && createEglContext() && createEglSurface() &&
@@ -189,7 +303,8 @@ final class ColorFade {
         // times.  The rest of the animation should run smoothly thereafter.
         // The frames we draw here aren't visible because we are essentially just
         // painting the screenshot as-is.
-        if (mode == MODE_COOL_DOWN) {
+        mCrtStart = SystemClock.uptimeMillis();
+        if (mode == MODE_COOL_DOWN || mode == MODE_CRT) {
             for (int i = 0; i < DEJANK_FRAMES; i++) {
                 draw(1.0f);
             }
@@ -209,8 +324,10 @@ final class ColorFade {
     }
 
     private int loadShader(Context context, int resourceId, int type) {
-        String source = readFile(context, resourceId);
+        return compileShader(readFile(context, resourceId), type);
+    }
 
+    private int compileShader(String source, int type) {
         int shader = GLES20.glCreateShader(type);
 
         GLES20.glShaderSource(shader, source);
@@ -230,10 +347,13 @@ final class ColorFade {
     }
 
     private boolean initGLShaders(Context context) {
-        int vshader = loadShader(context, com.android.internal.R.raw.color_fade_vert,
-                GLES20.GL_VERTEX_SHADER);
-        int fshader = loadShader(context, com.android.internal.R.raw.color_fade_frag,
-                GLES20.GL_FRAGMENT_SHADER);
+        final boolean crt = mMode == MODE_CRT;
+        int vshader = crt ? compileShader(CRT_VERT, GLES20.GL_VERTEX_SHADER)
+                : loadShader(context, com.android.internal.R.raw.color_fade_vert,
+                        GLES20.GL_VERTEX_SHADER);
+        int fshader = crt ? compileShader(CRT_FRAG, GLES20.GL_FRAGMENT_SHADER)
+                : loadShader(context, com.android.internal.R.raw.color_fade_frag,
+                        GLES20.GL_FRAGMENT_SHADER);
         GLES20.glReleaseShaderCompiler();
         if (vshader == 0 || fshader == 0) return false;
 
@@ -258,9 +378,43 @@ final class ColorFade {
 
         GLES20.glUseProgram(mProgram);
         GLES20.glUniform1i(mTexUnitLoc, 0);
+        if (crt) initCrtUniforms();
         GLES20.glUseProgram(0);
 
         return true;
+    }
+
+    /** The CRT settings for this switch-off; they don't change while it runs. */
+    private void initCrtUniforms() {
+        mCrtLocP = GLES20.glGetUniformLocation(mProgram, "p");
+        mCrtLocTime = GLES20.glGetUniformLocation(mProgram, "time");
+        mCrtLocAspect = GLES20.glGetUniformLocation(mProgram, "aspect");
+        mCrtLocRotated = GLES20.glGetUniformLocation(mProgram, "rotated");
+        mCrtLocShape = GLES20.glGetUniformLocation(mProgram, "shape");
+        mCrtLocFlash = GLES20.glGetUniformLocation(mProgram, "flash");
+        mCrtLocAfterglow = GLES20.glGetUniformLocation(mProgram, "afterglow");
+        mCrtLocTear = GLES20.glGetUniformLocation(mProgram, "tear");
+        mCrtLocSplit = GLES20.glGetUniformLocation(mProgram, "split");
+        mCrtLocNoise = GLES20.glGetUniformLocation(mProgram, "noise");
+        mCrtLocRoll = GLES20.glGetUniformLocation(mProgram, "roll");
+        mCrtLocFlicker = GLES20.glGetUniformLocation(mProgram, "flicker");
+        mCrtLocTint = GLES20.glGetUniformLocation(mProgram, "tint");
+        final float w = mRotated ? mDisplayHeight : mDisplayWidth;
+        final float h = mRotated ? mDisplayWidth : mDisplayHeight;
+        GLES20.glUniform1f(mCrtLocAspect, h > 0 ? w / h : 1f);
+        GLES20.glUniform1f(mCrtLocRotated, mRotated ? 1f : 0f);
+        GLES20.glUniform1f(mCrtLocShape,
+                Math.max(0, Math.min(2, SystemProperties.getInt(CRT_PROP + "shape", 0))));
+        GLES20.glUniform1f(mCrtLocFlash, crtProp("flash", 70));
+        GLES20.glUniform1f(mCrtLocAfterglow, crtProp("afterglow", 50));
+        GLES20.glUniform1f(mCrtLocTear, crtProp("tear", 25));
+        GLES20.glUniform1f(mCrtLocSplit, crtProp("split", 30));
+        GLES20.glUniform1f(mCrtLocNoise, crtProp("noise", 20));
+        GLES20.glUniform1f(mCrtLocRoll, crtProp("roll", 0));
+        GLES20.glUniform1f(mCrtLocFlicker, crtProp("flicker", 25));
+        final int tint = SystemProperties.getInt(CRT_PROP + "tint", 0);
+        final float[] c = CRT_TINTS[tint >= 0 && tint < CRT_TINTS.length ? tint : 0];
+        GLES20.glUniform3f(mCrtLocTint, c[0], c[1], c[2]);
     }
 
     private void destroyGLShaders() {
@@ -402,7 +556,11 @@ final class ColorFade {
             double sign = cos < 0 ? -1 : 1;
             float opacity = (float) -Math.pow(one_minus_level, 2) + 1;
             float gamma = (float) ((0.5d * sign * Math.pow(cos, 2) + 0.5d) * 0.9d + 0.1d);
-            drawFaded(opacity, 1.f / gamma);
+            if (mMode == MODE_CRT) {
+                drawCrt(1f - level);
+            } else {
+                drawFaded(opacity, 1.f / gamma);
+            }
             if (checkGlErrors("drawFrame")) {
                 return false;
             }
@@ -443,6 +601,30 @@ final class ColorFade {
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 4);
 
         // clean up
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0);
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+    }
+
+    private void drawCrt(float progress) {
+        GLES20.glUseProgram(mProgram);
+        GLES20.glUniformMatrix4fv(mProjMatrixLoc, 1, false, mProjMatrix, 0);
+        GLES20.glUniformMatrix4fv(mTexMatrixLoc, 1, false, mTexMatrix, 0);
+        GLES20.glUniform1f(mCrtLocP, progress);
+        GLES20.glUniform1f(mCrtLocTime, (SystemClock.uptimeMillis() - mCrtStart) / 1000f);
+
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, mTexNames[0]);
+
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, mGLBuffers[0]);
+        GLES20.glEnableVertexAttribArray(mVertexLoc);
+        GLES20.glVertexAttribPointer(mVertexLoc, 2, GLES20.GL_FLOAT, false, 0, 0);
+
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, mGLBuffers[1]);
+        GLES20.glEnableVertexAttribArray(mTexCoordLoc);
+        GLES20.glVertexAttribPointer(mTexCoordLoc, 2, GLES20.GL_FLOAT, false, 0, 0);
+
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 4);
+
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0);
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
     }
