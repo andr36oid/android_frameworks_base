@@ -1480,6 +1480,22 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
                 } else {
                     mColorFadeOnAnimator.end();
                 }
+            } else if (mColorFadeAvailable && ColorFade.onStyle() == ColorFade.ON_DEGAUSS
+                    && mPowerRequest.isBrightOrDim()
+                    && (mColorFadeOnAnimator.isStarted() || mPowerState.getColorFadeLevel() < 1.0f)) {
+                // andr36oid: the old TV switching on. Take the black surface away, then the
+                // degauss plays over a still of what is on screen until it settles.
+                if (!mColorFadeOnAnimator.isStarted()) {
+                    mPowerState.dismissColorFade();
+                    if (mPowerState.prepareColorFade(mContext, ColorFade.MODE_DEGAUSS)) {
+                        mColorFadeOnAnimator.setDuration(ColorFade.onLengthMillis());
+                        mColorFadeOnAnimator.setInterpolator(new LinearInterpolator());
+                        mColorFadeOnAnimator.start();
+                    } else {
+                        mPowerState.setColorFadeLevel(1.0f);
+                        mPowerState.dismissColorFade();
+                    }
+                }
             } else {
                 // Skip screen on animation.
                 mPowerState.setColorFadeLevel(1.0f);

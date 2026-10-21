@@ -111,7 +111,7 @@ final class ColorFade {
     private int mOpacityLoc, mGammaLoc;
     private int mCrtLocP, mCrtLocTime, mCrtLocAspect, mCrtLocRotated, mCrtLocShape;
     private int mCrtLocFlash, mCrtLocAfterglow, mCrtLocTear, mCrtLocSplit, mCrtLocNoise;
-    private int mCrtLocRoll, mCrtLocFlicker, mCrtLocTint;
+    private int mCrtLocRoll, mCrtLocFlicker, mCrtLocTint, mCrtLocWobble, mCrtLocColour;
     private boolean mRotated;
     private long mCrtStart;
     private int mProgram;
@@ -146,6 +146,16 @@ final class ColorFade {
      */
     public static final int MODE_CRT = 3;
 
+    /**
+     * andr36oid: an old TV switching on. The picture wobbles and rainbow patches swirl
+     * over it, then it settles (persist.andr36oid.crtoff.on_*).
+     */
+    public static final int MODE_DEGAUSS = 4;
+
+    /** persist.andr36oid.crtoff.on_style: what the screen does when it switches on */
+    public static final int ON_NONE = 0;
+    public static final int ON_DEGAUSS = 1;
+
     /** persist.andr36oid.crtoff.style: what the screen does when it switches off */
     public static final int OFF_NONE = 0;
     public static final int OFF_FADE = 1;
@@ -167,6 +177,14 @@ final class ColorFade {
         return Math.max(150, Math.min(5000, SystemProperties.getInt(CRT_PROP + "length", 700)));
     }
 
+    public static int onStyle() {
+        return SystemProperties.getInt(CRT_PROP + "on_style", ON_NONE);
+    }
+
+    public static int onLengthMillis() {
+        return Math.max(150, Math.min(5000, SystemProperties.getInt(CRT_PROP + "on_length", 1200)));
+    }
+
     private static float crtProp(String name, int def) {
         return Math.max(0, Math.min(100, SystemProperties.getInt(CRT_PROP + name, def))) / 100f;
     }
@@ -179,6 +197,34 @@ final class ColorFade {
             + "void main() {\n"
             + "    POS = uv;\n"
             + "    gl_Position = proj_matrix * vec4(position.x, position.y, 0.0, 1.0);\n"
+            + "}\n";
+
+    // p runs from 0 (just switched on) to 1 (settled). The picture shakes and colour
+    // patches swirl over it, both dying away; e is how much is left of it.
+    private static final String DEGAUSS_FRAG =
+            "#extension GL_OES_EGL_image_external : require\n"
+            + "precision highp float;\n"
+            + "uniform samplerExternalOES texUnit;\n"
+            + "uniform mat4 tex_matrix;\n"
+            + "uniform float p, time, rotated, wobble, colour;\n"
+            + "varying vec2 POS;\n"
+            + "vec3 pic(vec2 u) {\n"
+            + "    vec2 n = rotated > 0.5 ? u.yx : u;\n"
+            + "    vec4 t = tex_matrix * vec4(n, 1.0, 1.0);\n"
+            + "    return texture2D(texUnit, t.st / t.q).rgb;\n"
+            + "}\n"
+            + "void main() {\n"
+            + "    vec2 u = rotated > 0.5 ? POS.yx : POS;\n"
+            + "    float e = (1.0 - p) * (1.0 - p);\n"
+            + "    vec2 shake = vec2(sin(u.y * 11.0 + time * 38.0) + 0.5 * sin(u.y * 27.0 - time * 61.0),\n"
+            + "            sin(u.x * 7.0 + time * 31.0)) * 0.025 * wobble * e;\n"
+            + "    vec3 c = pic(clamp(u + shake, 0.0, 1.0));\n"
+            + "    float h = sin(u.x * 5.0 + time * 4.0) + sin(u.y * 4.0 - time * 3.0)\n"
+            + "            + sin((u.x + u.y) * 3.0 + time * 6.0) + 0.6 * sin(length(u - 0.5) * 14.0 - time * 9.0);\n"
+            + "    vec3 rainbow = 0.5 + 0.5 * cos(6.2832 * (h * 0.25 + vec3(0.0, 0.333, 0.667)));\n"
+            + "    c *= mix(vec3(1.0), 0.35 + 1.3 * rainbow, colour * e);\n"
+            + "    c *= 0.75 + 0.25 * smoothstep(0.0, 0.12, p);\n"
+            + "    gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);\n"
             + "}\n";
 
     // p runs from 0 (the picture) to 1 (black). The picture squashes into a line (A),
@@ -304,7 +350,7 @@ final class ColorFade {
         // The frames we draw here aren't visible because we are essentially just
         // painting the screenshot as-is.
         mCrtStart = SystemClock.uptimeMillis();
-        if (mode == MODE_COOL_DOWN || mode == MODE_CRT) {
+        if (mode == MODE_COOL_DOWN || mode == MODE_CRT || mode == MODE_DEGAUSS) {
             for (int i = 0; i < DEJANK_FRAMES; i++) {
                 draw(1.0f);
             }
@@ -347,11 +393,12 @@ final class ColorFade {
     }
 
     private boolean initGLShaders(Context context) {
-        final boolean crt = mMode == MODE_CRT;
+        final boolean crt = mMode == MODE_CRT || mMode == MODE_DEGAUSS;
         int vshader = crt ? compileShader(CRT_VERT, GLES20.GL_VERTEX_SHADER)
                 : loadShader(context, com.android.internal.R.raw.color_fade_vert,
                         GLES20.GL_VERTEX_SHADER);
-        int fshader = crt ? compileShader(CRT_FRAG, GLES20.GL_FRAGMENT_SHADER)
+        int fshader = crt ? compileShader(mMode == MODE_CRT ? CRT_FRAG : DEGAUSS_FRAG,
+                        GLES20.GL_FRAGMENT_SHADER)
                 : loadShader(context, com.android.internal.R.raw.color_fade_frag,
                         GLES20.GL_FRAGMENT_SHADER);
         GLES20.glReleaseShaderCompiler();
@@ -384,7 +431,7 @@ final class ColorFade {
         return true;
     }
 
-    /** The CRT settings for this switch-off; they don't change while it runs. */
+    /** The CRT settings for this switch-off or on; they don't change while it runs. */
     private void initCrtUniforms() {
         mCrtLocP = GLES20.glGetUniformLocation(mProgram, "p");
         mCrtLocTime = GLES20.glGetUniformLocation(mProgram, "time");
@@ -399,6 +446,11 @@ final class ColorFade {
         mCrtLocRoll = GLES20.glGetUniformLocation(mProgram, "roll");
         mCrtLocFlicker = GLES20.glGetUniformLocation(mProgram, "flicker");
         mCrtLocTint = GLES20.glGetUniformLocation(mProgram, "tint");
+        mCrtLocWobble = GLES20.glGetUniformLocation(mProgram, "wobble");
+        mCrtLocColour = GLES20.glGetUniformLocation(mProgram, "colour");
+        // each shader only has some of these; the others are -1 and ignored
+        GLES20.glUniform1f(mCrtLocWobble, crtProp("on_wobble", 60));
+        GLES20.glUniform1f(mCrtLocColour, crtProp("on_colour", 70));
         final float w = mRotated ? mDisplayHeight : mDisplayWidth;
         final float h = mRotated ? mDisplayWidth : mDisplayHeight;
         GLES20.glUniform1f(mCrtLocAspect, h > 0 ? w / h : 1f);
@@ -558,6 +610,8 @@ final class ColorFade {
             float gamma = (float) ((0.5d * sign * Math.pow(cos, 2) + 0.5d) * 0.9d + 0.1d);
             if (mMode == MODE_CRT) {
                 drawCrt(1f - level);
+            } else if (mMode == MODE_DEGAUSS) {
+                drawCrt(level);
             } else {
                 drawFaded(opacity, 1.f / gamma);
             }
