@@ -112,7 +112,11 @@ final class ColorFade {
     private int mCrtLocP, mCrtLocTime, mCrtLocAspect, mCrtLocRotated, mCrtLocShape;
     private int mCrtLocFlash, mCrtLocAfterglow, mCrtLocTear, mCrtLocSplit, mCrtLocNoise;
     private int mCrtLocRoll, mCrtLocFlicker, mCrtLocTint, mCrtLocWobble, mCrtLocColour;
+    private int mCrtLocRes;
     private boolean mRotated;
+    // what the backlight does along with the picture, see backlight()
+    private float mLight, mLightFlash, mLightAfterglow, mLightFlicker;
+    private int mLightShape;
     private long mCrtStart;
     private int mProgram;
 
@@ -207,6 +211,7 @@ final class ColorFade {
             + "uniform samplerExternalOES texUnit;\n"
             + "uniform mat4 tex_matrix;\n"
             + "uniform float p, time, rotated, wobble, colour;\n"
+            + "uniform vec2 res;\n"
             + "varying vec2 POS;\n"
             + "vec3 pic(vec2 u) {\n"
             + "    vec2 n = rotated > 0.5 ? u.yx : u;\n"
@@ -215,15 +220,32 @@ final class ColorFade {
             + "}\n"
             + "void main() {\n"
             + "    vec2 u = rotated > 0.5 ? POS.yx : POS;\n"
-            + "    float e = (1.0 - p) * (1.0 - p);\n"
-            + "    vec2 shake = vec2(sin(u.y * 11.0 + time * 38.0) + 0.5 * sin(u.y * 27.0 - time * 61.0),\n"
-            + "            sin(u.x * 7.0 + time * 31.0)) * 0.025 * wobble * e;\n"
-            + "    vec3 c = pic(clamp(u + shake, 0.0, 1.0));\n"
-            + "    float h = sin(u.x * 5.0 + time * 4.0) + sin(u.y * 4.0 - time * 3.0)\n"
-            + "            + sin((u.x + u.y) * 3.0 + time * 6.0) + 0.6 * sin(length(u - 0.5) * 14.0 - time * 9.0);\n"
-            + "    vec3 rainbow = 0.5 + 0.5 * cos(6.2832 * (h * 0.25 + vec3(0.0, 0.333, 0.667)));\n"
-            + "    c *= mix(vec3(1.0), 0.35 + 1.3 * rainbow, colour * e);\n"
-            + "    c *= 0.75 + 0.25 * smoothstep(0.0, 0.12, p);\n"
+            // e: how much of the disturbance is left, exactly 0 when it has settled
+            + "    float e = exp(-p * 3.5) * (1.0 - p);\n"
+            + "    vec2 c0 = u - 0.5;\n"
+            + "    float r = length(c0 * vec2(res.x / res.y, 1.0));\n"
+            // the coil's field shakes the picture, damped, bending it most at the edges
+            + "    float o1 = sin(time * 43.98);\n"
+            + "    float o2 = sin(time * 69.12 + 1.3);\n"
+            + "    vec2 bend = vec2(o1 * (0.6 + 3.2 * c0.y * c0.y) * sin(u.y * 6.2832 + time * 9.0),\n"
+            + "            o2 * 0.5 * sin(u.x * 9.4248 - time * 7.0));\n"
+            + "    vec2 su = clamp(u + bend * 0.018 * wobble * e, 0.0, 1.0);\n"
+            // the three colour guns miss each other, most towards the corners
+            + "    float ang = time * 3.0;\n"
+            + "    vec2 co = c0 * 0.024 * colour * e + vec2(cos(ang), sin(ang)) * 0.004 * colour * e;\n"
+            + "    vec3 c = vec3(pic(clamp(su + co, 0.0, 1.0)).r, pic(su).g, pic(clamp(su - co, 0.0, 1.0)).b);\n"
+            // purity: big rainbow blotches swirling round the screen, strongest at the corners
+            + "    float sa = sin(time * 1.8), ca = cos(time * 1.8);\n"
+            + "    vec2 w = vec2(ca * c0.x - sa * c0.y, sa * c0.x + ca * c0.y);\n"
+            + "    float h = sin(w.x * 6.0) + sin(w.y * 5.0 + 1.7) + sin((w.x - w.y) * 4.0 + time * 2.0)\n"
+            + "            + 0.7 * sin(r * 9.0 - time * 6.0);\n"
+            + "    vec3 rainbow = 0.5 + 0.5 * cos(6.2832 * (h * 0.22 + vec3(0.0, 0.333, 0.667)));\n"
+            + "    float edge = 0.35 + 0.65 * smoothstep(0.15, 0.7, r);\n"
+            + "    c *= mix(vec3(1.0), 0.3 + 1.4 * rainbow, colour * e * edge);\n"
+            // the thunk: dark for an instant, a surge, then it settles
+            + "    c *= 1.0 - 0.45 * (1.0 - smoothstep(0.0, 0.06, p)) + 0.18 * sin(3.14159 * clamp((p - 0.04) / 0.25, 0.0, 1.0));\n"
+            // a faint hum bar rolling up the screen
+            + "    c *= 1.0 - 0.12 * e * wobble * (0.5 + 0.5 * sin((u.y + time * 0.8) * 6.2832));\n"
             + "    gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);\n"
             + "}\n";
 
@@ -235,8 +257,9 @@ final class ColorFade {
             + "precision highp float;\n"
             + "uniform samplerExternalOES texUnit;\n"
             + "uniform mat4 tex_matrix;\n"
-            + "uniform float p, time, aspect, rotated, shape, flash, afterglow;\n"
+            + "uniform float p, time, rotated, shape, flash, afterglow;\n"
             + "uniform float tear, split, noise, roll, flicker;\n"
+            + "uniform vec2 res;\n"
             + "uniform vec3 tint;\n"
             + "varying vec2 POS;\n"
             + "float hash(float n) { return fract(sin(n) * 43758.5453); }\n"
@@ -244,48 +267,73 @@ final class ColorFade {
             + "vec3 pic(vec2 u) {\n"
             + "    vec2 n = rotated > 0.5 ? u.yx : u;\n"
             + "    vec4 t = tex_matrix * vec4(n, 1.0, 1.0);\n"
-            + "    float in_ = step(0.0, u.x) * step(u.x, 1.0) * step(0.0, u.y) * step(u.y, 1.0);\n"
-            + "    return texture2D(texUnit, t.st / t.q).rgb * in_;\n"
+            + "    vec2 m = step(vec2(0.0), u) * step(u, vec2(1.0));\n"
+            + "    return texture2D(texUnit, t.st / t.q).rgb * m.x * m.y;\n"
             + "}\n"
             + "void main() {\n"
             + "    vec2 u = rotated > 0.5 ? POS.yx : POS;\n"
-            + "    float a1 = shape < 0.5 ? 0.5 : (shape < 1.5 ? 0.6 : 0.7);\n"
-            + "    float a2 = shape < 0.5 ? 0.75 : a1;\n"
+            + "    vec2 P = (u - 0.5) * res;\n"
+            // A: the picture collapses into a line, B: the line into a dot, C: what is left fades
+            + "    float a1 = shape < 0.5 ? 0.55 : (shape < 1.5 ? 0.6 : 0.7);\n"
+            + "    float a2 = shape < 0.5 ? 0.78 : a1;\n"
             + "    float A = clamp(p / a1, 0.0, 1.0);\n"
             + "    float B = shape < 0.5 ? clamp((p - a1) / (a2 - a1), 0.0, 1.0) : 0.0;\n"
             + "    float C = clamp((p - a2) / (1.0 - a2), 0.0, 1.0);\n"
-            + "    float k = A * A;\n"
-            + "    float line = 0.004;\n"
-            + "    float hy = mix(0.5, line, k);\n"
-            + "    float hx = 0.5 * (1.0 + 0.06 * A);\n"
-            + "    if (shape > 1.5) hx = mix(0.5, line / aspect, k);\n"
-            + "    else if (shape < 0.5) hx = mix(hx, line / aspect, B * B);\n"
-            + "    // glitches: strongest while the picture is still there, in bursts\n"
-            + "    float gA = (1.0 - smoothstep(0.6, 1.0, A)) * (0.45 + 0.55 * step(0.5, hash(floor(time * 12.0))));\n"
-            + "    vec2 src = 0.5 + (u - 0.5) * vec2(0.5 / hx, 0.5 / hy);\n"
+            + "    float k = pow(A, 2.4);\n"
+            + "    float hy = mix(res.y * 0.5, 0.75, k);\n"
+            + "    float hx = res.x * 0.5 * (1.0 + 0.05 * smoothstep(0.3, 1.0, A));\n"
+            + "    if (shape > 1.5) {\n"
+            + "        hx = mix(res.x * 0.5, 1.2, k);\n"
+            + "        hy = mix(res.y * 0.5, 1.2, k);\n"
+            + "    } else if (shape < 0.5) {\n"
+            + "        hx = mix(hx, 1.2, pow(B, 1.6));\n"
+            + "        hy = mix(hy, 1.2, B);\n"
+            + "    }\n"
+            + "    hx = mix(hx, max(hx * 0.85, 1.2), C);\n"
+            // glitches: in bursts, while there is still a picture
+            + "    float tick = floor(time * 24.0);\n"
+            + "    float burst = 0.45 + 0.55 * step(0.5, hash(floor(time * 12.0)));\n"
+            + "    float gA = (1.0 - smoothstep(0.55, 0.95, A)) * smoothstep(0.0, 0.06, p) * burst;\n"
+            + "    vec2 src = P / (2.0 * vec2(hx, hy)) + 0.5;\n"
             + "    float slip = roll * gA * (0.25 * step(0.6, hash(floor(time * 7.0) + 3.0)) * hash(floor(time * 7.0)) + 0.35 * k);\n"
             + "    float yy = src.y + slip;\n"
             + "    float bar = mix(1.0, smoothstep(0.0, 0.05, fract(yy)) * smoothstep(0.0, 0.05, 1.0 - fract(yy)), step(0.001, slip));\n"
             + "    src.y = mix(src.y, fract(yy), step(0.001, slip));\n"
-            + "    float tick = floor(time * 24.0);\n"
             + "    float row = floor(src.y * 90.0);\n"
             + "    float rowHit = step(1.0 - 0.4 * tear, hash(row * 1.7 + tick * 3.1));\n"
             + "    float band = smoothstep(0.08, 0.0, abs(src.y - hash(floor(time * 5.0))));\n"
-            + "    src.x += tear * gA * ((hash(row + tick) - 0.5) * 0.12 * rowHit + 0.06 * band);\n"
+            + "    src.x += tear * gA * ((hash(row + tick) - 0.5) * 0.12 * rowHit + 0.06 * band\n"
+            + "            + 0.012 * sin(src.y * 23.0 + time * 31.0));\n"
             + "    float off = split * (0.004 + 0.02 * A) * (0.5 + gA);\n"
             + "    vec3 c = vec3(pic(src + vec2(off, 0.0)).r, pic(src).g, pic(src - vec2(off, 0.0)).b) * bar;\n"
             + "    c *= 1.0 - flicker * 0.45 * hash(tick + 7.0) * gA;\n"
-            + "    float w = shape < 0.5 || shape > 1.5 ? max(flash * smoothstep(0.5, 1.0, A), flash * step(0.001, B))\n"
-            + "            : flash * smoothstep(0.5, 1.0, A);\n"
-            + "    vec3 core = mix(c * (1.0 + flash * 1.5 * k), tint * (1.0 + flash), w);\n"
-            + "    vec2 q = max(abs(u - 0.5) - vec2(hx, hy), 0.0) * vec2(aspect, 1.0);\n"
-            + "    float d = length(q);\n"
-            + "    float inside = 1.0 - step(0.00001, d);\n"
-            + "    float halo = exp(-d / (0.006 + 0.03 * flash)) * flash * mix(k, 1.0, step(0.001, B + C));\n"
-            + "    vec3 col = inside * core + (1.0 - inside) * halo * tint;\n"
+            // the same light in less height: brighter, then white hot
+            + "    float squeeze = res.y * 0.5 / hy;\n"
+            + "    float gain = 1.0 + flash * (min(squeeze, 4.0) - 1.0) * 0.35;\n"
+            + "    float w = max(flash * smoothstep(30.0, 2.0, hy), flash * step(0.001, B + C));\n"
+            + "    vec3 beam = tint * (1.0 + 1.5 * flash);\n"
+            + "    vec3 core = mix(c * gain, beam, w);\n"
+            // the beam: soft edges, brighter in the middle of the line
+            + "    vec2 dd = abs(P) - vec2(hx, hy);\n"
+            + "    float inside = smoothstep(hx + 1.0, hx - 0.5, abs(P.x)) * smoothstep(hy + 1.0, hy - 0.5, abs(P.y));\n"
+            + "    float taper = 1.0 - 0.6 * pow(clamp(abs(P.x) / max(hx, 1.0), 0.0, 1.0), 3.0) * smoothstep(0.7, 1.0, A);\n"
+            + "    float d = length(max(dd, 0.0));\n"
+            + "    float hs = mix(k, 1.0, step(0.001, B + C));\n"
+            + "    float bloom = flash * hs * (0.55 * exp(-d / (3.0 + 6.0 * flash)) + 0.3 * exp(-d / (18.0 + 50.0 * flash)));\n"
+            // phosphor persistence: the picture glows on where the beam has left it
+            + "    vec3 ghost = pic(u) * pow(1.0 - A, 1.5) * mix(0.25, 0.7, afterglow) * vec3(0.9, 1.0, 0.85);\n"
+            // the energy of the shrinking line ends up in one hot dot
+            + "    float dotGlow = flash * B * B * exp(-length(P) / (6.0 + 14.0 * flash)) * (shape < 0.5 ? 1.0 : 0.0)\n"
+            + "            + flash * (shape > 1.5 ? k * k : 0.0) * exp(-length(P) / (6.0 + 14.0 * flash));\n"
+            + "    vec3 col = inside * core * taper + (1.0 - inside) * ghost + (bloom + dotGlow) * tint;\n"
             + "    col *= pow(1.0 - C, mix(3.0, 0.6, afterglow));\n"
+            // the glass: a little darker towards the corners while it happens
+            + "    col *= 1.0 - 0.3 * smoothstep(0.35, 1.0, length(u - 0.5) * 1.5) * smoothstep(0.0, 0.3, A);\n"
             + "    float grain = hash2(gl_FragCoord.xy + fract(time * 7.0) * 113.0) - 0.5;\n"
             + "    col += grain * noise * (0.5 * gA * inside + 0.12 * (1.0 - A));\n"
+            // light past white bleeds into white, like an overdriven tube
+            + "    float over = max(max(col.r, max(col.g, col.b)) - 1.0, 0.0);\n"
+            + "    col += over * 0.6;\n"
             + "    gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);\n"
             + "}\n";
 
@@ -436,6 +484,7 @@ final class ColorFade {
         mCrtLocP = GLES20.glGetUniformLocation(mProgram, "p");
         mCrtLocTime = GLES20.glGetUniformLocation(mProgram, "time");
         mCrtLocAspect = GLES20.glGetUniformLocation(mProgram, "aspect");
+        mCrtLocRes = GLES20.glGetUniformLocation(mProgram, "res");
         mCrtLocRotated = GLES20.glGetUniformLocation(mProgram, "rotated");
         mCrtLocShape = GLES20.glGetUniformLocation(mProgram, "shape");
         mCrtLocFlash = GLES20.glGetUniformLocation(mProgram, "flash");
@@ -454,11 +503,16 @@ final class ColorFade {
         final float w = mRotated ? mDisplayHeight : mDisplayWidth;
         final float h = mRotated ? mDisplayWidth : mDisplayHeight;
         GLES20.glUniform1f(mCrtLocAspect, h > 0 ? w / h : 1f);
+        GLES20.glUniform2f(mCrtLocRes, w, h);
         GLES20.glUniform1f(mCrtLocRotated, mRotated ? 1f : 0f);
-        GLES20.glUniform1f(mCrtLocShape,
-                Math.max(0, Math.min(2, SystemProperties.getInt(CRT_PROP + "shape", 0))));
-        GLES20.glUniform1f(mCrtLocFlash, crtProp("flash", 70));
-        GLES20.glUniform1f(mCrtLocAfterglow, crtProp("afterglow", 50));
+        mLightShape = Math.max(0, Math.min(2, SystemProperties.getInt(CRT_PROP + "shape", 0)));
+        mLightFlash = crtProp("flash", 70);
+        mLightAfterglow = crtProp("afterglow", 50);
+        mLightFlicker = crtProp("flicker", 25);
+        mLight = mMode == MODE_CRT ? crtProp("backlight", 60) : crtProp("on_backlight", 60);
+        GLES20.glUniform1f(mCrtLocShape, mLightShape);
+        GLES20.glUniform1f(mCrtLocFlash, mLightFlash);
+        GLES20.glUniform1f(mCrtLocAfterglow, mLightAfterglow);
         GLES20.glUniform1f(mCrtLocTear, crtProp("tear", 25));
         GLES20.glUniform1f(mCrtLocSplit, crtProp("split", 30));
         GLES20.glUniform1f(mCrtLocNoise, crtProp("noise", 20));
@@ -657,6 +711,51 @@ final class ColorFade {
         // clean up
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0);
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+    }
+
+    /**
+     * andr36oid: the backlight during the old TV animations, b is what it would be
+     * otherwise. Switching off, it flares with the line, flickers with the glitches and
+     * dims with the afterglow; switching on, it thumps and hums while the picture settles.
+     */
+    public float backlight(float level, float b) {
+        if (!mPrepared || mLight <= 0f || b < 0f) return b;
+        final float t = (SystemClock.uptimeMillis() - mCrtStart) / 1000f;
+        final float room = 1f - Math.min(1f, b);
+        float out = b;
+        if (mMode == MODE_CRT) {
+            final float p = 1f - level;
+            final float a1 = mLightShape == 0 ? 0.55f : mLightShape == 1 ? 0.6f : 0.7f;
+            final float a2 = mLightShape == 0 ? 0.78f : a1;
+            final float a = clamp01(p / a1);
+            final float c = clamp01((p - a2) / (1f - a2));
+            final float glitch = (1f - smoothstep(0.55f, 0.95f, a)) * smoothstep(0f, 0.06f, p);
+            // the tube flares as the picture turns into the white-hot line
+            out += room * mLight * mLightFlash * smoothstep(0.8f, 1f, a) * (1f - c);
+            out *= 1f - mLight * mLightFlicker * 0.5f * glitch * hash((float) Math.floor(t * 24f) + 7f);
+            final float fade = (float) Math.pow(1f - c, 3f - 2.4f * mLightAfterglow);
+            out *= 1f - mLight + mLight * fade;
+        } else if (mMode == MODE_DEGAUSS) {
+            final float e = (float) Math.exp(-level * 3.5f) * (1f - level);
+            out *= 1f - mLight * 0.5f * (1f - smoothstep(0f, 0.12f, level));
+            out += room * mLight * 0.35f * (float) Math.sin(Math.PI * clamp01((level - 0.08f) / 0.3f));
+            out *= 1f - mLight * 0.25f * e * (float) Math.abs(Math.sin(t * 43.98f));
+        }
+        return Math.max(0f, Math.min(1f, out));
+    }
+
+    private static float clamp01(float v) {
+        return Math.max(0f, Math.min(1f, v));
+    }
+
+    private static float smoothstep(float e0, float e1, float x) {
+        final float t = clamp01((x - e0) / (e1 - e0));
+        return t * t * (3f - 2f * t);
+    }
+
+    private static float hash(float n) {
+        final double v = Math.sin(n) * 43758.5453;
+        return (float) (v - Math.floor(v));
     }
 
     private void drawCrt(float progress) {

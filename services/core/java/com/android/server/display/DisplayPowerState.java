@@ -312,6 +312,10 @@ final class DisplayPowerState {
 
             float brightnessState = mScreenState != Display.STATE_OFF
                     && mColorFadeLevel > 0f ? mScreenBrightness : PowerManager.BRIGHTNESS_OFF_FLOAT;
+            // andr36oid: the old TV animations steer the backlight too
+            if (mColorFadePrepared && mColorFadeLevel > 0f && mColorFade != null) {
+                brightnessState = mColorFade.backlight(mColorFadeLevel, brightnessState);
+            }
             if (mPhotonicModulator.setState(mScreenState, brightnessState)) {
                 if (DEBUG) {
                     Slog.d(TAG, "Screen ready");
