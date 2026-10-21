@@ -67,7 +67,7 @@ android_library {
         "kotlinx-coroutines-core",
         "iconloader_base",
         "SystemUI-tags",
-        "andr36oid-hint-bar",
+        "//device/gameconsole/common:andr36oid-hint-bar",
         "SystemUI-proto",
         "dagger2-2.19",
         "jsr330",
