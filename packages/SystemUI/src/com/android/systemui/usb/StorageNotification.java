@@ -33,6 +33,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.os.StrictMode;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.storage.DiskInfo;
 import android.os.storage.StorageEventListener;
@@ -51,6 +52,8 @@ import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 import com.android.systemui.SystemUI;
 import com.android.systemui.util.NotificationChannels;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 public class StorageNotification extends SystemUI {
@@ -332,7 +335,7 @@ public class StorageNotification extends SystemUI {
         final Notification notif;
         // andr36oid: EASYROMS sits on the card Android itself runs from. It can't be
         // ejected or set up on its own, so it gets no notification at all.
-        if (isOsCard(vol.getDisk())) {
+        if (isOsCard(vol)) {
             mNotificationManager.cancelAsUser(vol.getId(), SystemMessage.NOTE_STORAGE_PUBLIC,
                     UserHandle.of(vol.getMountUserId()));
             return;
@@ -377,8 +380,31 @@ public class StorageNotification extends SystemUI {
         }
     }
 
-    /** The card Android runs from: mmcblk0, the console's only card slot. */
-    private static boolean isOsCard(DiskInfo disk) {
+    /**
+     * The card Android runs from. Its volume's block device (public:179,7 is 179:7) sits
+     * in sysfs under the controller Android started from (ro.boot.boot_devices, e.g.
+     * ff370000.dwmmc). Not just disk:179,0: the volume can come without its disk, and
+     * with the built-in eMMC switched on the numbers can move.
+     */
+    private static boolean isOsCard(VolumeInfo vol) {
+        final String id = vol.getId();
+        final String boot = SystemProperties.get("ro.boot.boot_devices", "");
+        if (id != null && id.startsWith("public:") && !boot.isEmpty()) {
+            try {
+                final String dev = id.substring("public:".length()).replace(',', ':');
+                final String path = new File("/sys/dev/block/" + dev).getCanonicalPath();
+                if (path.startsWith("/sys/devices/")) {
+                    for (String b : boot.split("[,\\s]+")) {
+                        if (!b.isEmpty() && path.contains("/" + b + "/")) return true;
+                    }
+                    return false;
+                }
+            } catch (IOException e) {
+                Log.w(TAG, "Can't find " + id + " in sysfs", e);
+            }
+        }
+        // no answer from sysfs: the card in the first slot, where Android runs from
+        final DiskInfo disk = vol.getDisk();
         return disk != null && "disk:179,0".equals(disk.getId());
     }
 
