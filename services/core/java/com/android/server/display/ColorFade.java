@@ -301,7 +301,7 @@ final class ColorFade {
             + "    src.y = mix(src.y, fract(yy), step(0.001, slip));\n"
             + "    float row = floor(src.y * 90.0);\n"
             + "    float rowHit = step(1.0 - 0.4 * tear, hash(row * 1.7 + tick * 3.1));\n"
-            + "    float band = smoothstep(0.08, 0.0, abs(src.y - hash(floor(time * 5.0))));\n"
+            + "    float band = 1.0 - smoothstep(0.0, 0.08, abs(src.y - hash(floor(time * 5.0))));\n"
             + "    src.x += tear * gA * ((hash(row + tick) - 0.5) * 0.12 * rowHit + 0.06 * band\n"
             + "            + 0.012 * sin(src.y * 23.0 + time * 31.0));\n"
             + "    float off = split * (0.004 + 0.02 * A) * (0.5 + gA);\n"
@@ -310,12 +310,13 @@ final class ColorFade {
             // the same light in less height: brighter, then white hot
             + "    float squeeze = res.y * 0.5 / hy;\n"
             + "    float gain = 1.0 + flash * (min(squeeze, 4.0) - 1.0) * 0.35;\n"
-            + "    float w = max(flash * smoothstep(30.0, 2.0, hy), flash * step(0.001, B + C));\n"
+            + "    float w = max(flash * (1.0 - smoothstep(2.0, 30.0, hy)), flash * step(0.001, B + C));\n"
             + "    vec3 beam = tint * (1.0 + 1.5 * flash);\n"
             + "    vec3 core = mix(c * gain, beam, w);\n"
             // the beam: soft edges, brighter in the middle of the line
             + "    vec2 dd = abs(P) - vec2(hx, hy);\n"
-            + "    float inside = smoothstep(hx + 1.0, hx - 0.5, abs(P.x)) * smoothstep(hy + 1.0, hy - 0.5, abs(P.y));\n"
+            + "    float inside = (1.0 - smoothstep(hx - 0.5, hx + 1.0, abs(P.x)))\n"
+            + "            * (1.0 - smoothstep(hy - 0.5, hy + 1.0, abs(P.y)));\n"
             + "    float taper = 1.0 - 0.6 * pow(clamp(abs(P.x) / max(hx, 1.0), 0.0, 1.0), 3.0) * smoothstep(0.7, 1.0, A);\n"
             + "    float d = length(max(dd, 0.0));\n"
             + "    float hs = mix(k, 1.0, step(0.001, B + C));\n"
@@ -352,6 +353,14 @@ final class ColorFade {
     public boolean prepare(Context context, int mode) {
         if (DEBUG) {
             Slog.d(TAG, "prepare: mode=" + mode);
+        }
+
+        // andr36oid: the black surface left from switching off must be gone before the
+        // degauss takes its still of the screen, or the still is black
+        if (mode == MODE_DEGAUSS && mSurfaceControl != null) {
+            dismissResources();
+            destroySurface(true);
+            mPrepared = false;
         }
 
         mMode = mode;
@@ -984,10 +993,15 @@ final class ColorFade {
     }
 
     private void destroySurface() {
+        destroySurface(false);
+    }
+
+    /** sync: wait until SurfaceFlinger has taken the surface off the screen */
+    private void destroySurface(boolean sync) {
         if (mSurfaceControl != null) {
             mSurfaceLayout.dispose();
             mSurfaceLayout = null;
-            new Transaction().remove(mSurfaceControl).apply();
+            new Transaction().remove(mSurfaceControl).apply(sync);
             mSurface.release();
             mSurfaceControl = null;
             mSurfaceVisible = false;

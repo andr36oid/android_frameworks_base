@@ -1432,6 +1432,11 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
             }
             // If display state changed to on, proceed and stop the color fade and turn screen on.
             mPendingScreenOff = false;
+            // andr36oid: back on halfway through the switch-off animation: stop it, so it
+            // doesn't keep driving the level against the switch-on animation
+            if (mColorFadeOffAnimator.isStarted()) {
+                mColorFadeOffAnimator.cancel();
+            }
         }
 
         if (mDisplayBlanksAfterDozeConfig
@@ -1441,7 +1446,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
             // contents of the screen.
             mPowerState.prepareColorFade(mContext,
                     mColorFadeFadesConfig ? ColorFade.MODE_FADE : ColorFade.MODE_WARM_UP);
-            if (mColorFadeEnabled && mColorFadeOffAnimator != null) {
+            if (mColorFadeOffAnimator != null) {
                 mColorFadeOffAnimator.end();
             }
             // Some display hardware will blank itself on the transition between doze and non-doze
@@ -1483,10 +1488,9 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
             } else if (mColorFadeAvailable && ColorFade.onStyle() == ColorFade.ON_DEGAUSS
                     && mPowerRequest.isBrightOrDim()
                     && (mColorFadeOnAnimator.isStarted() || mPowerState.getColorFadeLevel() < 1.0f)) {
-                // andr36oid: the old TV switching on. Take the black surface away, then the
-                // degauss plays over a still of what is on screen until it settles.
+                // andr36oid: the old TV switching on. ColorFade takes the black surface away
+                // first, then the degauss plays over a still of the screen until it settles.
                 if (!mColorFadeOnAnimator.isStarted()) {
-                    mPowerState.dismissColorFade();
                     if (mPowerState.prepareColorFade(mContext, ColorFade.MODE_DEGAUSS)) {
                         mColorFadeOnAnimator.setDuration(ColorFade.onLengthMillis());
                         mColorFadeOnAnimator.setInterpolator(new LinearInterpolator());
@@ -1601,8 +1605,8 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
                     && mPowerState.getScreenState() != Display.STATE_OFF) {
                 // Perform the screen off animation. The CRT one keeps its own pace.
                 final boolean crt = offMode == ColorFade.MODE_CRT;
-                mColorFadeOffAnimator.setDuration(crt ? ColorFade.offLengthMillis()
-                        : COLOR_FADE_OFF_ANIMATION_DURATION_MILLIS);
+                mColorFadeOffAnimator.setDuration(offStyle != ColorFade.OFF_NONE
+                        ? ColorFade.offLengthMillis() : COLOR_FADE_OFF_ANIMATION_DURATION_MILLIS);
                 mColorFadeOffAnimator.setInterpolator(crt ? new LinearInterpolator()
                         : mColorFadeOffInterpolator);
                 mColorFadeOffAnimator.start();
