@@ -223,14 +223,14 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 PowerMenuStatsFormat.ramLevel(s.ramPercent),
                 PowerMenuStatsFormat.ramExtra(s.ramUsedMb, s.ramTotalMb));
         // SD   12% 3.4MB/s (how busy the card was, what it read and wrote together). With a
-        // data card the eMMC and the card share the column, so only how busy each is.
+        // data card the card has a graph of its own, under the temperature.
         showStorage(mStorage, s.storageEmmc ? R.string.global_actions_stats_storage_emmc
                 : R.string.global_actions_stats_storage, s.storagePercent,
-                s.storageBytesPerSec, s.storageDirection, !s.hasDataCard);
+                s.storageBytesPerSec, s.storageDirection);
         mDataCardView.setVisibility(s.hasDataCard ? VISIBLE : GONE);
         if (s.hasDataCard) {
             showStorage(mDataCard, R.string.global_actions_stats_storage, s.dataCardPercent,
-                    s.dataCardBytesPerSec, s.dataCardDirection, false);
+                    s.dataCardBytesPerSec, s.dataCardDirection);
         }
         // ✓ ZRAM on, under the RAM graph; hidden (keeping its space) while there is no swap
         mZram.setVisibility(s.zramOn ? VISIBLE : INVISIBLE);
@@ -241,15 +241,12 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
      * the color of its level, the extra in the value color. The graph takes the level's
      * color too, or the label color while the value is unremarkable.
      */
-    /**
-     * A disk: how busy, the speed if speed (no room for it with two disks), ↑ green while
-     * it mostly reads, ↓ red while it mostly writes.
-     */
+    /** A disk: how busy, the speed, ↑ green while it mostly reads, ↓ red while it writes. */
     private void showStorage(Cell cell, int label, int percent, long bytesPerSec,
-            int direction, boolean speed) {
+            int direction) {
         show(cell, label, PowerMenuStatsFormat.storageValue(percent),
                 PowerMenuStatsFormat.storageLevel(percent),
-                speed ? PowerMenuStatsFormat.storageExtra(bytesPerSec) : "");
+                PowerMenuStatsFormat.storageExtra(bytesPerSec));
         final String arrow = PowerMenuStatsFormat.storageArrow(direction);
         if (!arrow.isEmpty() && bytesPerSec > 0) {
             final SpannableStringBuilder sd = new SpannableStringBuilder(cell.text.getText());

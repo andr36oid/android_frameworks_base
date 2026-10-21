@@ -34,7 +34,7 @@
     android:contentDescription="@string/global_actions_stats_description"
     android:visibility="gone">
 
-    <!-- CPU with the SD card's busy share under it, one column wide like the others -->
+    <!-- CPU with the SD card (or the eMMC on an eMMC install) under it -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -48,40 +48,37 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
 
-        <!-- An eMMC install with its data on an SD card: the eMMC and the card side by side -->
-        <LinearLayout
+        <include
+            android:id="@+id/global_actions_stats_storage"
+            layout="@layout/global_actions_console_stats_cell"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/global_actions_stats_graph_gap"
-            android:orientation="horizontal"
-            android:baselineAligned="false"
-            android:focusable="false">
-
-            <include
-                android:id="@+id/global_actions_stats_storage"
-                layout="@layout/global_actions_console_stats_cell"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1" />
-
-            <include
-                android:id="@+id/global_actions_stats_datacard"
-                layout="@layout/global_actions_console_stats_cell"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="@dimen/global_actions_stats_cell_gap"
-                android:visibility="gone" />
-        </LinearLayout>
+            android:layout_marginTop="@dimen/global_actions_stats_graph_gap" />
     </LinearLayout>
 
-    <include
-        android:id="@+id/global_actions_stats_temp"
-        layout="@layout/global_actions_console_stats_cell"
+    <!-- The temperature, with an eMMC install's data card under it: a graph of its own -->
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:layout_marginStart="@dimen/global_actions_stats_cell_gap" />
+        android:layout_marginStart="@dimen/global_actions_stats_cell_gap"
+        android:orientation="vertical"
+        android:focusable="false">
+
+        <include
+            android:id="@+id/global_actions_stats_temp"
+            layout="@layout/global_actions_console_stats_cell"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <include
+            android:id="@+id/global_actions_stats_datacard"
+            layout="@layout/global_actions_console_stats_cell"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/global_actions_stats_graph_gap"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <include
         android:id="@+id/global_actions_stats_bat"
