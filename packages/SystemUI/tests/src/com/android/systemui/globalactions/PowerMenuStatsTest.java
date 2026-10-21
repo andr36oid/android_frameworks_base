@@ -339,6 +339,8 @@ public class PowerMenuStatsTest {
         write(sd + "/stat", "1\n");
         write(emmc + "mmcblk2/stat", "2\n");
         write(emmc + "mmcblk2/mmcblk2boot0/stat", "3\n");
+        write(sd + "/device/type", "SD\n");
+        write(emmc + "mmcblk2/device/type", "MMC\n");
         new File(mRoot, "sys/block").mkdirs();
         for (String[] link : new String[][] {{"mmcblk0", "../" + sd.substring(4)},
                 {"mmcblk2boot0", "../devices/platform/ff390000.dwmmc/mmc_host/mmc2/mmc2:0001"
@@ -348,10 +350,15 @@ public class PowerMenuStatsTest {
             Files.createSymbolicLink(new File(mRoot, "sys/block/" + link[0]).toPath(),
                     new File(link[1]).toPath());
         }
-        assertEquals(mRoot.getPath() + "/sys/block/mmcblk2/stat",
-                new PowerMenuStatsReader(mRoot.getPath(), "ff390000.dwmmc").storagePath());
-        assertEquals(mRoot.getPath() + "/sys/block/mmcblk0/stat",
-                new PowerMenuStatsReader(mRoot.getPath(), "ff370000.dwmmc").storagePath());
+        final PowerMenuStatsReader emmcStart =
+                new PowerMenuStatsReader(mRoot.getPath(), "ff390000.dwmmc");
+        assertEquals(mRoot.getPath() + "/sys/block/mmcblk2/stat", emmcStart.storagePath());
+        assertTrue(emmcStart.storageEmmc);
+        assertTrue(emmcStart.snapshot().storageEmmc);
+        final PowerMenuStatsReader sdStart =
+                new PowerMenuStatsReader(mRoot.getPath(), "ff370000.dwmmc");
+        assertEquals(mRoot.getPath() + "/sys/block/mmcblk0/stat", sdStart.storagePath());
+        assertFalse(sdStart.storageEmmc);
         // unknown boot device: the SD card, as before
         assertEquals(mRoot.getPath() + "/sys/block/mmcblk0/stat",
                 new PowerMenuStatsReader(mRoot.getPath(), "").storagePath());

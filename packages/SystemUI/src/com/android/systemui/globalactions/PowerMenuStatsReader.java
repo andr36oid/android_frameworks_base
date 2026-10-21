@@ -68,6 +68,8 @@ final class PowerMenuStatsReader {
     long storageBytesPerSec = -1;
     /** 1 if the card mostly read since the last sample, -1 if it mostly wrote, 0 neither. */
     int storageDirection;
+    /** The storage is the built-in eMMC (an eMMC install), not the SD card. */
+    boolean storageEmmc;
     /** Swap is set up, which on this console is only the zram device from the fstab. */
     boolean zramOn;
 
@@ -97,6 +99,9 @@ final class PowerMenuStatsReader {
     PowerMenuStatsReader(String root, String bootDevices) {
         mRoot = root;
         mStoragePath = findStorage(bootDevices);
+        // device/type next to the stat file: "MMC" for the eMMC, "SD" for a card
+        final String type = read(new File(mStoragePath).getParent() + "/device/type");
+        storageEmmc = type != null && type.trim().equals("MMC");
         mGpuFreqPath = findGpuFreq();
         mTempPath = findTemperature();
         mBatteryPath = findBattery();
@@ -130,6 +135,7 @@ final class PowerMenuStatsReader {
         copy.storageBytesPerSec = storageBytesPerSec;
         copy.storageDirection = storageDirection;
         copy.zramOn = zramOn;
+        copy.storageEmmc = storageEmmc;
         return copy;
     }
 

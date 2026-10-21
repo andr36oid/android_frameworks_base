@@ -215,7 +215,8 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 PowerMenuStatsFormat.ramLevel(s.ramPercent),
                 PowerMenuStatsFormat.ramExtra(s.ramUsedMb, s.ramTotalMb));
         // SD   12% 3.4MB/s (how busy the card was, what it read and wrote together)
-        show(mStorage, R.string.global_actions_stats_storage,
+        show(mStorage, s.storageEmmc ? R.string.global_actions_stats_storage_emmc
+                : R.string.global_actions_stats_storage,
                 PowerMenuStatsFormat.storageValue(s.storagePercent),
                 PowerMenuStatsFormat.storageLevel(s.storagePercent),
                 PowerMenuStatsFormat.storageExtra(s.storageBytesPerSec));
