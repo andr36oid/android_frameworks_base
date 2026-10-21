@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_shade_hint_select">Seç</string>
+    <string name="andr36oid_shade_hint_close">Kapat</string>
+    <string name="andr36oid_shade_hint_toggle">Değiştir</string>
+    <string name="andr36oid_shade_hint_details">Ayrıntılar</string>
+    <string name="andr36oid_shade_hint_tile_settings">Ayarlar</string>
+    <string name="andr36oid_shade_hint_dismiss">Kaldır</string>
+    <string name="andr36oid_shade_hint_options">Seçenekler</string>
+    <string name="andr36oid_shade_hint_to_notifications">Bildirimler</string>
+    <string name="andr36oid_shade_hint_to_tiles">Kutucuklar</string>
+</resources>

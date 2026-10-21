@@ -23,6 +23,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -32,6 +33,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.AbsSeekBar;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 
 import androidx.recyclerview.widget.RecyclerView;
@@ -46,6 +48,8 @@ import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow
 import com.android.systemui.statusbar.notification.row.ExpandableView;
 import com.android.systemui.statusbar.notification.row.NotificationGuts;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout;
+
+import org.andr36oid.hints.HintBar;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -115,6 +119,13 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
     private ExpandableNotificationRow mPendingGuts;
     private long mPendingUntil;
 
+    // The button hints along the bottom while the shade is all the way open
+    private final HintBar mHints;
+    private float mExpansion;
+    private int mHintsFor = -1;
+    private static final int HINTS_OTHER = 0, HINTS_TILE = 1, HINTS_NOTIFICATION = 2,
+            HINTS_MEDIA = 3;
+
     /** A place the focus can go in the notification list. */
     private static class Target {
         final View view;
@@ -145,6 +156,13 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
         mStrokePaint.setColor(accent);
         mFillPaint.setColor(accent);
         mFillPaint.setAlpha(FOCUS_FILL_ALPHA);
+
+        mHints = new HintBar(context);
+        mHints.setBackgroundColor(0xe6000000);
+        mHints.setVisibility(View.GONE);
+        final int hintsHeight = Math.round(HintBar.HEIGHT_DP * density);
+        root.addView(mHints, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                hintsHeight, Gravity.BOTTOM));
 
         final ViewTreeObserver observer = root.getViewTreeObserver();
         observer.addOnPreDrawListener(this);
@@ -336,6 +354,7 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
 
     @Override
     public void onPanelExpansionChanged(float expansion, boolean tracking) {
+        mExpansion = expansion;
         if (expansion == 0f) {
             // Closed: the next time it opens, start over on the first tile
             mFocusFirst = true;
@@ -424,7 +443,52 @@ public class ShadeKeyNavigation implements ViewTreeObserver.OnPreDrawListener,
             }
         }
         updateFocusRect(active);
+        updateHints();
         return true;
+    }
+
+    /** The hints follow what is focused: a tile, a notification, the media player. */
+    private void updateHints() {
+        final boolean show = isActive() && mExpansion >= 1f;
+        if (!show) {
+            if (mHints.getVisibility() != View.GONE) mHints.setVisibility(View.GONE);
+            return;
+        }
+        final View focused = mRoot.findFocus();
+        final int kind = focused == null ? HINTS_OTHER
+                : focused instanceof QSTileBaseView ? HINTS_TILE
+                : getMediaPlayer(focused) != null ? HINTS_MEDIA
+                : getRow(focused) != null ? HINTS_NOTIFICATION
+                : HINTS_OTHER;
+        if (kind != mHintsFor) {
+            mHintsFor = kind;
+            final Context c = mRoot.getContext();
+            final boolean inList = kind == HINTS_NOTIFICATION || kind == HINTS_MEDIA;
+            switch (kind) {
+                case HINTS_TILE:
+                    mHints.set("A", c.getString(R.string.andr36oid_shade_hint_toggle),
+                            "B", c.getString(R.string.andr36oid_shade_hint_close),
+                            "X", c.getString(R.string.andr36oid_shade_hint_details),
+                            "Y", c.getString(R.string.andr36oid_shade_hint_tile_settings));
+                    break;
+                case HINTS_NOTIFICATION:
+                case HINTS_MEDIA:
+                    mHints.set("A", c.getString(R.string.andr36oid_shade_hint_select),
+                            "B", c.getString(R.string.andr36oid_shade_hint_close),
+                            "X", c.getString(R.string.andr36oid_shade_hint_dismiss),
+                            "Y", c.getString(R.string.andr36oid_shade_hint_options));
+                    break;
+                default:
+                    mHints.set("A", c.getString(R.string.andr36oid_shade_hint_select),
+                            "B", c.getString(R.string.andr36oid_shade_hint_close));
+            }
+            mHints.add(inList ? "L1" : "R1", c.getString(inList
+                    ? R.string.andr36oid_shade_hint_to_tiles : R.string.andr36oid_shade_hint_to_notifications));
+        }
+        if (mHints.getVisibility() != View.VISIBLE) {
+            mHints.setVisibility(View.VISIBLE);
+            mHints.bringToFront();
+        }
     }
 
     /**

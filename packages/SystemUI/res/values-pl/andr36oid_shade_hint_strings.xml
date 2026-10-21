@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_shade_hint_select">Wybierz</string>
+    <string name="andr36oid_shade_hint_close">Zamknij</string>
+    <string name="andr36oid_shade_hint_toggle">Przełącz</string>
+    <string name="andr36oid_shade_hint_details">Szczegóły</string>
+    <string name="andr36oid_shade_hint_tile_settings">Ustawienia</string>
+    <string name="andr36oid_shade_hint_dismiss">Odrzuć</string>
+    <string name="andr36oid_shade_hint_options">Opcje</string>
+    <string name="andr36oid_shade_hint_to_notifications">Powiadomienia</string>
+    <string name="andr36oid_shade_hint_to_tiles">Kafelki</string>
+</resources>

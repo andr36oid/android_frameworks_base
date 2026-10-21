@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_shade_hint_select">Selecionar</string>
+    <string name="andr36oid_shade_hint_close">Fechar</string>
+    <string name="andr36oid_shade_hint_toggle">Alternar</string>
+    <string name="andr36oid_shade_hint_details">Detalhes</string>
+    <string name="andr36oid_shade_hint_tile_settings">Definições</string>
+    <string name="andr36oid_shade_hint_dismiss">Dispensar</string>
+    <string name="andr36oid_shade_hint_options">Opções</string>
+    <string name="andr36oid_shade_hint_to_notifications">Notificações</string>
+    <string name="andr36oid_shade_hint_to_tiles">Atalhos</string>
+</resources>

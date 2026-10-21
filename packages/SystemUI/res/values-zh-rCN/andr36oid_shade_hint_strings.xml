@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_shade_hint_select">选择</string>
+    <string name="andr36oid_shade_hint_close">关闭</string>
+    <string name="andr36oid_shade_hint_toggle">切换</string>
+    <string name="andr36oid_shade_hint_details">详情</string>
+    <string name="andr36oid_shade_hint_tile_settings">设置</string>
+    <string name="andr36oid_shade_hint_dismiss">清除</string>
+    <string name="andr36oid_shade_hint_options">选项</string>
+    <string name="andr36oid_shade_hint_to_notifications">通知</string>
+    <string name="andr36oid_shade_hint_to_tiles">磁贴</string>
+</resources>

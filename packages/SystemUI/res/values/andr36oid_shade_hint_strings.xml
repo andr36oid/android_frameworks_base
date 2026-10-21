@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Button hints along the bottom of the open notification shade, used with a game
+         controller: what each button does on the focused item. Keep them short. -->
+    <string name="andr36oid_shade_hint_select">Select</string>
+    <string name="andr36oid_shade_hint_close">Close</string>
+    <!-- A on a quick settings tile: switch it on or off -->
+    <string name="andr36oid_shade_hint_toggle">Switch</string>
+    <!-- X on a quick settings tile: open its details (Wi-Fi networks, Bluetooth devices) -->
+    <string name="andr36oid_shade_hint_details">Details</string>
+    <!-- Y on a quick settings tile: open its settings page -->
+    <string name="andr36oid_shade_hint_tile_settings">Settings</string>
+    <!-- X on a notification: swipe it away -->
+    <string name="andr36oid_shade_hint_dismiss">Dismiss</string>
+    <!-- Y on a notification: its controls (snooze, notification settings) -->
+    <string name="andr36oid_shade_hint_options">Options</string>
+    <!-- R1: jump down to the notifications -->
+    <string name="andr36oid_shade_hint_to_notifications">Notifications</string>
+    <!-- L1: jump back up to the quick settings tiles -->
+    <string name="andr36oid_shade_hint_to_tiles">Tiles</string>
+</resources>

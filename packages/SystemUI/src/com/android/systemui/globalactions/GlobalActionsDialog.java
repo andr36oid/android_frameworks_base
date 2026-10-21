@@ -173,6 +173,8 @@ import lineageos.providers.LineageSettings;
 import org.lineageos.internal.lineageparts.PartsList;
 import org.lineageos.internal.util.PowerMenuUtils;
 
+import org.andr36oid.hints.HintBar;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -3394,6 +3396,16 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             mGlobalActionsLayout.setRotationListener(this::onRotate);
             mGlobalActionsLayout.setAdapter(mAdapter);
             mContainer = findViewById(com.android.systemui.R.id.global_actions_container);
+            // andr36oid: the button hints along the bottom, as in the shade and the apps
+            final HintBar hints = new HintBar(mContext);
+            hints.setBackgroundColor(Color.TRANSPARENT);
+            hints.set("A", mContext.getString(
+                    com.android.systemui.R.string.andr36oid_shade_hint_select),
+                    "B", mContext.getString(
+                    com.android.systemui.R.string.andr36oid_shade_hint_close));
+            mContainer.addView(hints, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, Math.round(HintBar.HEIGHT_DP
+                            * mContext.getResources().getDisplayMetrics().density)));
             mLockMessageContainer = requireViewById(
                     com.android.systemui.R.id.global_actions_lock_message_container);
             mLockMessage = requireViewById(com.android.systemui.R.id.global_actions_lock_message);

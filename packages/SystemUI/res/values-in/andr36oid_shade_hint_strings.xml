@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_shade_hint_select">Pilih</string>
+    <string name="andr36oid_shade_hint_close">Tutup</string>
+    <string name="andr36oid_shade_hint_toggle">Ganti</string>
+    <string name="andr36oid_shade_hint_details">Detail</string>
+    <string name="andr36oid_shade_hint_tile_settings">Pengaturan</string>
+    <string name="andr36oid_shade_hint_dismiss">Hapus</string>
+    <string name="andr36oid_shade_hint_options">Opsi</string>
+    <string name="andr36oid_shade_hint_to_notifications">Notifikasi</string>
+    <string name="andr36oid_shade_hint_to_tiles">Pintasan</string>
+</resources>

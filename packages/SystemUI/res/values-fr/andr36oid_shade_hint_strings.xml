@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_shade_hint_select">Sélectionner</string>
+    <string name="andr36oid_shade_hint_close">Fermer</string>
+    <string name="andr36oid_shade_hint_toggle">Basculer</string>
+    <string name="andr36oid_shade_hint_details">Détails</string>
+    <string name="andr36oid_shade_hint_tile_settings">Paramètres</string>
+    <string name="andr36oid_shade_hint_dismiss">Ignorer</string>
+    <string name="andr36oid_shade_hint_options">Options</string>
+    <string name="andr36oid_shade_hint_to_notifications">Notifications</string>
+    <string name="andr36oid_shade_hint_to_tiles">Tuiles</string>
+</resources>

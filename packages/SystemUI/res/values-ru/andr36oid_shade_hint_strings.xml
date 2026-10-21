@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="andr36oid_shade_hint_select">Выбрать</string>
+    <string name="andr36oid_shade_hint_close">Закрыть</string>
+    <string name="andr36oid_shade_hint_toggle">Переключить</string>
+    <string name="andr36oid_shade_hint_details">Подробнее</string>
+    <string name="andr36oid_shade_hint_tile_settings">Настройки</string>
+    <string name="andr36oid_shade_hint_dismiss">Убрать</string>
+    <string name="andr36oid_shade_hint_options">Параметры</string>
+    <string name="andr36oid_shade_hint_to_notifications">Уведомления</string>
+    <string name="andr36oid_shade_hint_to_tiles">Плитки</string>
+</resources>
