@@ -15,10 +15,11 @@
  */
 
 // andr36oid: the boot log on screen. Holding Select (BTN_SELECT) while the boot animation
-// runs, or persist.andr36oid.bootlog=1, swaps the animation for the kernel log and logcat
-// as scrolling text: errors red, warnings yellow. The home screen comes as usual when the
-// start is done; if it hangs, the last lines stay up. Both logs are read from the
-// beginning, so nothing before the switch is lost.
+// runs, persist.andr36oid.bootlog=1 or ro.boot.bootlog=1 (Settings > Personalization >
+// Always start with the boot log, a Kernel Tweaks start option) swaps the animation for
+// the kernel log and logcat as scrolling text: errors red, warnings yellow. The home
+// screen comes as usual when the start is done; if it hangs, the last lines stay up.
+// Both logs are read from the beginning, so nothing before the switch is lost.
 //
 // bootanim.rc gives the service what it needs: the input group (the key), the log group
 // (logcat) and CAP_SYSLOG (the kernel log, dmesg_restrict is on).
@@ -68,6 +69,8 @@ namespace android {
 namespace {
 
 constexpr const char* kLogProp = "persist.andr36oid.bootlog";
+// on the kernel command line, so known from the animation's first frame
+constexpr const char* kLogBootProp = "ro.boot.bootlog";
 constexpr const char* kFontFile = "/system/fonts/DroidSansMono.ttf";
 constexpr nsecs_t kKeyCheckInterval = ms2ns(100);
 constexpr nsecs_t kKernelPollInterval = ms2ns(500);
@@ -332,11 +335,13 @@ bool BootAnimation::logRequested() {
     if (now - mLastKeyCheck < kKeyCheckInterval) return false;
     mLastKeyCheck = now;
 
-    if (property_get_bool(kLogProp, false)) {
-        ALOGI("boot log: on (%s)", kLogProp);
-        mLogMode = true;
-        mLogReason = kLogProp;
-        return true;
+    for (const char* prop : {kLogBootProp, kLogProp}) {
+        if (property_get_bool(prop, false)) {
+            ALOGI("boot log: on (%s)", prop);
+            mLogMode = true;
+            mLogReason = prop == kLogBootProp ? "always on" : prop;
+            return true;
+        }
     }
     if (!mKeysOpened) {
         // The pads that have a Select key
