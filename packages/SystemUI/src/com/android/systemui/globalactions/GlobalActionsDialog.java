@@ -101,7 +101,9 @@ import android.util.FeatureFlagUtils;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
 import android.view.IWindowManager;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
+import android.view.SoundEffectConstants;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -3376,6 +3378,28 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
             if (!hideAppSwitcher()) {
                 super.onBackPressed();
             }
+        }
+
+        /**
+         * andr36oid: up and down move the focus through the scroll view, which doesn't play
+         * the navigation sound that left and right get from the focus search. Play it here.
+         */
+        @Override
+        public boolean dispatchKeyEvent(KeyEvent event) {
+            final int key = event.getKeyCode();
+            if (event.getAction() != KeyEvent.ACTION_DOWN
+                    || (key != KeyEvent.KEYCODE_DPAD_UP && key != KeyEvent.KEYCODE_DPAD_DOWN)) {
+                return super.dispatchKeyEvent(event);
+            }
+            final View before = getCurrentFocus();
+            final boolean used = super.dispatchKeyEvent(event);
+            final View after = getCurrentFocus();
+            if (after != null && after != before) {
+                after.playSoundEffect(key == KeyEvent.KEYCODE_DPAD_UP
+                        ? SoundEffectConstants.NAVIGATION_UP
+                        : SoundEffectConstants.NAVIGATION_DOWN);
+            }
+            return used;
         }
 
         private void initializeLayout() {
