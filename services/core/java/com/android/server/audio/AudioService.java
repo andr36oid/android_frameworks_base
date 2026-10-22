@@ -5974,7 +5974,8 @@ public class AudioService extends IAudioService.Stub
                     // there is always an entry for AudioSystem.DEVICE_OUT_DEFAULT
                     index = mIndexMap.get(AudioSystem.DEVICE_OUT_DEFAULT);
                 }
-                return index;
+                // andr36oid: a volume saved above Maximum volume plays at it
+                return Math.min(index, limitedMaxIndex());
             }
         }
 
@@ -5985,7 +5986,23 @@ public class AudioService extends IAudioService.Stub
         }
 
         public int getMaxIndex() {
-            return mIndexMax;
+            return limitedMaxIndex();
+        }
+
+        /**
+         * andr36oid: Kernel Tweaks > Maximum volume (sys.andr36oid.max_volume, 10 to 90 percent
+         * of the range, 0 for none) for clones whose amplifier overdrives the speakers. The
+         * stream's top step becomes that part of the range, shown as the maximum everywhere;
+         * audio policy keeps the full range, so the top really is quieter.
+         */
+        private int limitedMaxIndex() {
+            final int percent = SystemProperties.getInt("sys.andr36oid.max_volume", 0);
+            if (percent < 10 || percent >= 100 || mUseFixedVolume) {
+                return mIndexMax;
+            }
+            // whole steps (indexes are ten times the step), at least one above the minimum
+            final int steps = (mIndexMax / 10 * percent + 50) / 100;
+            return Math.max(mIndexMin + 10, Math.min(mIndexMax, steps * 10));
         }
 
         /**
@@ -6131,6 +6148,8 @@ public class AudioService extends IAudioService.Stub
                 return indexMin;
             } else if (mUseFixedVolume || index > mIndexMax) {
                 return mIndexMax;
+            } else if (index > limitedMaxIndex()) {
+                return limitedMaxIndex();
             }
 
             return index;
