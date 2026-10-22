@@ -2,6 +2,7 @@
 <resources>
     <string name="global_actions_stats_bat">電池</string>
     <string name="global_actions_stats_cpu">CPU</string>
+    <string name="global_actions_stats_gpu">GPU</string>
     <string name="global_actions_stats_description">直近10分間のシステム情報</string>
     <string name="global_actions_stats_ram">RAM</string>
     <string name="global_actions_stats_ram_apps">アプリ</string>

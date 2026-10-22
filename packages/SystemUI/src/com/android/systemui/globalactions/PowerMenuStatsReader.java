@@ -44,6 +44,8 @@ final class PowerMenuStatsReader {
     int cpuPercent = -1;
     int cpuMhz = -1;
     int gpuMhz = -1;
+    /** How busy the GPU was since the last sample, from the driver's busy_idle file. */
+    int gpuPercent = -1;
     float tempC = Float.NaN;
     int batteryPercent = -1;
     boolean charging;
@@ -87,11 +89,14 @@ final class PowerMenuStatsReader {
     private final String mStoragePath;
     private final String mDataCardPath;
     private final String mGpuFreqPath;
+    private final String mGpuBusyPath;
     private final String mTempPath;
     private final String mBatteryPath;
 
     private long mLastCpuBusy = -1;
     private long mLastCpuTotal;
+    private long mLastGpuBusy = -1;
+    private long mLastGpuIdle;
     private final DiskIo mStorageIo = new DiskIo();
     private final DiskIo mDataCardIo = new DiskIo();
 
@@ -118,6 +123,8 @@ final class PowerMenuStatsReader {
         final String type = read(new File(mStoragePath).getParent() + "/device/type");
         storageEmmc = type != null && type.trim().equals("MMC");
         mGpuFreqPath = findGpuFreq();
+        mGpuBusyPath = mGpuFreqPath == null ? null
+                : new File(mGpuFreqPath).getParent() + "/device/busy_idle";
         mTempPath = findTemperature();
         mBatteryPath = findBattery();
     }
@@ -134,6 +141,7 @@ final class PowerMenuStatsReader {
         copy.cpuPercent = cpuPercent;
         copy.cpuMhz = cpuMhz;
         copy.gpuMhz = gpuMhz;
+        copy.gpuPercent = gpuPercent;
         copy.tempC = tempC;
         copy.batteryPercent = batteryPercent;
         copy.charging = charging;
@@ -165,6 +173,7 @@ final class PowerMenuStatsReader {
         mStoragePath = root + STORAGE_STAT;
         mDataCardPath = null;
         mGpuFreqPath = gpuFreqPath;
+        mGpuBusyPath = null;
         mTempPath = tempPath;
         mBatteryPath = batteryPath;
     }
@@ -173,6 +182,8 @@ final class PowerMenuStatsReader {
     void reset() {
         mLastCpuBusy = -1;
         cpuPercent = -1;
+        mLastGpuBusy = -1;
+        gpuPercent = -1;
         mStorageIo.reset();
         storagePercent = -1;
         storageBytesPerSec = -1;
@@ -188,6 +199,7 @@ final class PowerMenuStatsReader {
         cpuMhz = positiveOrMinusOne(readInt(mRoot + CPU_FREQ, 1000));
         gpuMhz = mGpuFreqPath == null ? -1
                 : positiveOrMinusOne(readInt(mGpuFreqPath, 1000000));
+        sampleGpu(mGpuBusyPath == null ? null : read(mGpuBusyPath));
         final int milliC = mTempPath == null ? Integer.MIN_VALUE : readInt(mTempPath, 1);
         tempC = milliC == Integer.MIN_VALUE || milliC < 0 ? Float.NaN : milliC / 1000f;
         final long nowMs = System.nanoTime() / 1000000;
@@ -360,6 +372,35 @@ final class PowerMenuStatsReader {
         }
         mLastCpuBusy = busy;
         mLastCpuTotal = total;
+    }
+
+    /**
+     * The GPU's busy share since the last sample: the Mali driver's busy_idle file holds its
+     * running busy and idle totals, 32-bit counters that wrap, so the differences are taken
+     * unsigned. Unlike devfreq's load file, reading it leaves the GPU governor alone.
+     */
+    void sampleGpu(String text) {
+        final String[] fields = text == null ? new String[0] : text.trim().split("\\s+");
+        final long busy;
+        final long idle;
+        try {
+            if (fields.length != 2) throw new NumberFormatException();
+            busy = Long.parseLong(fields[0]);
+            idle = Long.parseLong(fields[1]);
+        } catch (NumberFormatException e) {
+            mLastGpuBusy = -1;
+            gpuPercent = -1;
+            return;
+        }
+        if (mLastGpuBusy >= 0) {
+            final long busyDiff = (busy - mLastGpuBusy) & 0xffffffffL;
+            final long total = busyDiff + ((idle - mLastGpuIdle) & 0xffffffffL);
+            if (total > 0) {
+                gpuPercent = (int) Math.max(0, Math.min(100, 100 * busyDiff / total));
+            }
+        }
+        mLastGpuBusy = busy;
+        mLastGpuIdle = idle;
     }
 
     /** Below this the current says nothing about the direction (full, or noise). */

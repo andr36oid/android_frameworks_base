@@ -55,7 +55,8 @@ final class PowerMenuStatsSampler {
     static final int SERIES_STORAGE = 7;
     // An eMMC install's data card, see PowerMenuStatsReader.hasDataCard
     static final int SERIES_DATA_CARD = 8;
-    private static final int SERIES_COUNT = 9;
+    static final int SERIES_GPU = 9;
+    private static final int SERIES_COUNT = 10;
 
     static final long HISTORY_INTERVAL_MS = 5000;
     private static final long LIVE_INTERVAL_MS = 1000;
@@ -204,7 +205,8 @@ final class PowerMenuStatsSampler {
                 r.batteryWatts, r.ramPercent < 0 ? Float.NaN : r.ramPercent,
                 r.ramAppsTop, r.ramKernelTop, r.ramCacheTop,
                 r.storagePercent < 0 ? Float.NaN : r.storagePercent,
-                r.dataCardPercent < 0 ? Float.NaN : r.dataCardPercent);
+                r.dataCardPercent < 0 ? Float.NaN : r.dataCardPercent,
+                r.gpuPercent < 0 ? Float.NaN : r.gpuPercent);
         final long now = SystemClock.elapsedRealtime();
         // A little slack so a live second landing just before the mark still counts
         if (mLastHistoryTime == 0 || now - mLastHistoryTime >= HISTORY_INTERVAL_MS - 500) {

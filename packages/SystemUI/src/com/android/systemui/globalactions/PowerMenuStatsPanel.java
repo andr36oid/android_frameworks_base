@@ -43,6 +43,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
     private Cell mCpu;
     private Cell mTemp;
     private Cell mBattery;
+    private Cell mGpu;
     private Cell mRam;
     private Cell mStorage;
     private View mDataCardView;
@@ -91,6 +92,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
         mCpu = new Cell(findViewById(R.id.global_actions_stats_cpu));
         mTemp = new Cell(findViewById(R.id.global_actions_stats_temp));
         mBattery = new Cell(findViewById(R.id.global_actions_stats_bat));
+        mGpu = new Cell(findViewById(R.id.global_actions_stats_gpu));
         mRam = new Cell(findViewById(R.id.global_actions_stats_ram));
         mStorage = new Cell(findViewById(R.id.global_actions_stats_storage));
         mDataCardView = findViewById(R.id.global_actions_stats_datacard);
@@ -152,6 +154,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 capacity, Float.NaN, Float.NaN, 10f);
         showGraph(mBattery, history, PowerMenuStatsSampler.SERIES_POWER, capacity,
                 0f, Float.NaN, 2f);
+        showGraph(mGpu, history, PowerMenuStatsSampler.SERIES_GPU, capacity, 0f, 100f, 0f);
         showGraph(mRam, history, PowerMenuStatsSampler.SERIES_RAM, capacity, 0f, 100f, 0f);
         showRamLayers(history, capacity);
         showGraph(mStorage, history, PowerMenuStatsSampler.SERIES_STORAGE, capacity,
@@ -217,6 +220,10 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 PowerMenuStatsFormat.batteryValue(s.batteryPercent),
                 PowerMenuStatsFormat.batteryLevel(s.batteryPercent, s.charging),
                 PowerMenuStatsFormat.batteryExtra(s.batteryWatts, s.charging));
+        // GPU  40% 400MHz, under the battery
+        show(mGpu, R.string.global_actions_stats_gpu,
+                PowerMenuStatsFormat.cpuValue(s.gpuPercent),
+                PowerMenuStatsFormat.LEVEL_NORMAL, PowerMenuStatsFormat.gpuExtra(s.gpuMhz));
         // RAM 61% 612/976M
         show(mRam, R.string.global_actions_stats_ram,
                 PowerMenuStatsFormat.ramValue(s.ramPercent),

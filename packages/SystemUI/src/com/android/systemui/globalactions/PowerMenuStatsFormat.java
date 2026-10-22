@@ -47,6 +47,11 @@ final class PowerMenuStatsFormat {
         return mhz > 0 ? String.format(Locale.US, " %.2fGHz", mhz / 1000f) : "";
     }
 
+    /** " 400MHz", empty if the clock is unknown. */
+    static String gpuExtra(int mhz) {
+        return mhz > 0 ? " " + mhz + "MHz" : "";
+    }
+
     static String tempValue(float celsius) {
         return Float.isNaN(celsius) ? "--" : Math.round(celsius) + "°C";
     }

@@ -111,6 +111,25 @@ public class PowerMenuStatsTest {
     }
 
     @Test
+    public void reader_gpuShareBetweenSamples() {
+        final PowerMenuStatsReader reader = PowerMenuStatsReader.empty();
+        reader.sampleGpu("100 900\n");
+        assertEquals(-1, reader.gpuPercent);
+        // 100 more busy and 300 more idle: 25%
+        reader.sampleGpu("200 1200\n");
+        assertEquals(25, reader.gpuPercent);
+        // both counters wrapped at 32 bits: 50 busy, 50 idle
+        reader.sampleGpu("4294967290 4294967290\n");
+        reader.sampleGpu("44 44\n");
+        assertEquals(50, reader.gpuPercent);
+        reader.sampleGpu("garbage");
+        assertEquals(-1, reader.gpuPercent);
+        reader.reset();
+        reader.sampleGpu("300 1300\n");
+        assertEquals(-1, reader.gpuPercent);
+    }
+
+    @Test
     public void reader_cpuShareBetweenSamples() {
         final PowerMenuStatsReader reader = PowerMenuStatsReader.empty();
         reader.sampleCpu("cpu  100 0 100 800 0 0 0 0 0 0\ncpu0 1 2 3 4\n");
