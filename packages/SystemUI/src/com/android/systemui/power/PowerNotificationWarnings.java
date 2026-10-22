@@ -599,6 +599,12 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
         Slog.i(TAG,
                 "show low battery warning: level=" + mBatteryLevel
                         + " [" + mBucket + "] playSound=" + playSound);
+        // andr36oid: Game Comfort's slim banner across the top warns instead (Settings >
+        // Battery > Low battery warning); this notification, its sound and the battery saver
+        // suggestion that follows it don't suit a handheld in a full screen game
+        if (mContext.getResources().getBoolean(R.bool.config_andr36oidOwnLowBatteryWarning)) {
+            return;
+        }
         mPlaySound = playSound;
         mWarning = true;
         updateNotification();
