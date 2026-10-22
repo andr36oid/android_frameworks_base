@@ -1101,4 +1101,5 @@
     <string name="media_output_dialog_pairing_new" msgid="9099497976087485862">"与新设备配对"</string>
     <string name="battery_state_unknown_notification_title" msgid="8464703640483773454">"读取电池计量器时出现问题"</string>
     <string name="battery_state_unknown_notification_text" msgid="13720937839460899">"点按即可了解详情"</string>
+    <string name="andr36oid_low_voltage_warning">电池电压低 - CPU 可能会降频</string>
 </resources>

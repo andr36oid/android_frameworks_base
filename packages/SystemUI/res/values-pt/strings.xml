@@ -1101,4 +1101,5 @@
     <string name="media_output_dialog_pairing_new" msgid="9099497976087485862">"Parear novo dispositivo"</string>
     <string name="battery_state_unknown_notification_title" msgid="8464703640483773454">"Problema para ler seu medidor de bateria"</string>
     <string name="battery_state_unknown_notification_text" msgid="13720937839460899">"Toque para mais informações"</string>
+    <string name="andr36oid_low_voltage_warning">Tensão da bateria baixa - o CPU pode ser limitado</string>
 </resources>
