@@ -32,6 +32,7 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.Temperature;
 import android.os.UserHandle;
 import android.provider.Settings;
@@ -82,6 +83,7 @@ public class PowerUI extends SystemUI implements CommandQueue.Callbacks {
     private PowerManager mPowerManager;
     private WarningsUI mWarnings;
     private InattentiveSleepWarningView mOverlayView;
+    private LowVoltageWarning mLowVoltageWarning;
     private final Configuration mLastConfiguration = new Configuration();
     private int mPlugType = 0;
     private int mInvalidCharger = 0;
@@ -125,6 +127,11 @@ public class PowerUI extends SystemUI implements CommandQueue.Callbacks {
         mWarnings = Dependency.get(WarningsUI.class);
         mEnhancedEstimates = Dependency.get(EnhancedEstimates.class);
         mLastConfiguration.setTo(mContext.getResources().getConfiguration());
+
+        if (!SystemProperties.get("ro.andr36oid.version").isEmpty()) {
+            mLowVoltageWarning = new LowVoltageWarning(mContext, mHandler);
+            mLowVoltageWarning.start(mScreenOffTime < 0);
+        }
 
         ContentObserver obs = new ContentObserver(mHandler) {
             @Override
@@ -172,6 +179,10 @@ public class PowerUI extends SystemUI implements CommandQueue.Callbacks {
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
         final int mask = ActivityInfo.CONFIG_MCC | ActivityInfo.CONFIG_MNC;
+
+        if (mLowVoltageWarning != null) {
+            mLowVoltageWarning.onConfigurationChanged();
+        }
 
         // Safe to modify mLastConfiguration here as it's only updated by the main thread (here).
         if ((mLastConfiguration.updateFrom(newConfig) & mask) != 0) {
@@ -260,6 +271,9 @@ public class PowerUI extends SystemUI implements CommandQueue.Callbacks {
                 });
             } else if (Intent.ACTION_BATTERY_CHANGED.equals(action)) {
                 mHasReceivedBattery = true;
+                if (mLowVoltageWarning != null) {
+                    mLowVoltageWarning.batteryChanged(intent);
+                }
                 final int oldBatteryLevel = mBatteryLevel;
                 mBatteryLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 100);
                 final int oldBatteryStatus = mBatteryStatus;
@@ -318,10 +332,19 @@ public class PowerUI extends SystemUI implements CommandQueue.Callbacks {
 
             } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
                 mScreenOffTime = SystemClock.elapsedRealtime();
+                if (mLowVoltageWarning != null) {
+                    mLowVoltageWarning.setScreenOn(false);
+                }
             } else if (Intent.ACTION_SCREEN_ON.equals(action)) {
                 mScreenOffTime = -1;
+                if (mLowVoltageWarning != null) {
+                    mLowVoltageWarning.setScreenOn(true);
+                }
             } else if (Intent.ACTION_USER_SWITCHED.equals(action)) {
                 mWarnings.userSwitched();
+                if (mLowVoltageWarning != null) {
+                    mLowVoltageWarning.userSwitched();
+                }
             } else {
                 Slog.w(TAG, "unknown intent: " + intent);
             }

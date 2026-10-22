@@ -2881,4 +2881,7 @@
     <!-- Text to display in a notification when ACTION_BATTERY_CHANGED.EXTRA_PRESENT field is false
     [CHAR LIMIT=NONE] -->
     <string name="battery_state_unknown_notification_text">Tap for more information</string>
+
+    <!-- Voltage advisory over apps; the kernel does not report a throttle reason. -->
+    <string name="andr36oid_low_voltage_warning">Low bat voltage - CPU may be throttled</string>
 </resources>
