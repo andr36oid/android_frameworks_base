@@ -220,7 +220,7 @@ public class PowerMenuStatsPanel extends LinearLayout implements PowerMenuStatsS
                 PowerMenuStatsFormat.batteryValue(s.batteryPercent),
                 PowerMenuStatsFormat.batteryLevel(s.batteryPercent, s.charging),
                 PowerMenuStatsFormat.batteryExtra(s.batteryWatts, s.charging));
-        // GPU  40% 400MHz, under the battery
+        // GPU  40% 400MHz, under the CPU
         show(mGpu, R.string.global_actions_stats_gpu,
                 PowerMenuStatsFormat.cpuValue(s.gpuPercent),
                 PowerMenuStatsFormat.LEVEL_NORMAL, PowerMenuStatsFormat.gpuExtra(s.gpuMhz));

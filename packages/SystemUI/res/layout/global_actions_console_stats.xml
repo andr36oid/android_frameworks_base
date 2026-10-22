@@ -34,7 +34,7 @@
     android:contentDescription="@string/global_actions_stats_description"
     android:visibility="gone">
 
-    <!-- CPU with the SD card (or the eMMC on an eMMC install) under it -->
+    <!-- CPU with the GPU under it -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -49,7 +49,7 @@
             android:layout_height="wrap_content" />
 
         <include
-            android:id="@+id/global_actions_stats_storage"
+            android:id="@+id/global_actions_stats_gpu"
             layout="@layout/global_actions_console_stats_cell"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -80,7 +80,7 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- The battery, with the GPU under it -->
+    <!-- The battery, with the SD card (or the eMMC on an eMMC install) under it -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -94,7 +94,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
         <include
-            android:id="@+id/global_actions_stats_gpu"
+            android:id="@+id/global_actions_stats_storage"
             layout="@layout/global_actions_console_stats_cell"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
