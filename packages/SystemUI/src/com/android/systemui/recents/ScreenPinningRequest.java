@@ -101,22 +101,14 @@ public class ScreenPinningRequest implements View.OnClickListener,
     }
 
     public void showPrompt(int taskId, boolean allowCancel) {
+        // andr36oid: screen pinning removed. On a handheld with no navigation
+        // bar the confirmation overlay shows no OK/Cancel buttons and the whole
+        // screen acts as "confirm", so a stray button press pinned the app and
+        // trapped the user. Never raise the request; just clear any stale one.
         try {
             clearPrompt();
         } catch (IllegalArgumentException e) {
-            // If the call to show the prompt fails due to the request window not already being
-            // attached, then just ignore the error since we will be re-adding it below.
         }
-
-        this.taskId = taskId;
-
-        mRequestWindow = new RequestWindowView(mContext, allowCancel);
-
-        mRequestWindow.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-
-        // show the confirmation
-        WindowManager.LayoutParams lp = getWindowLayoutParams();
-        mWindowManager.addView(mRequestWindow, lp);
     }
 
     @Override
