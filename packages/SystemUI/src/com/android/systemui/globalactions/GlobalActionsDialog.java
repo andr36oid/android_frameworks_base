@@ -2116,6 +2116,14 @@ public class GlobalActionsDialog implements DialogInterface.OnDismissListener,
         mUiEventLogger.log(GlobalActionsEvent.GA_POWER_MENU_CLOSE);
         mWindowManagerFuncs.onGlobalActionsHidden();
         mLifecycle.setCurrentState(Lifecycle.State.CREATED);
+        // andr36oid: the blur/depth behind the menu is otherwise only reset when the
+        // dismiss animation finishes (ActionsDialog.completeDismiss). If the window is
+        // torn down by any other path (for example a focus change when the home app
+        // comes back), that animation never runs and the blur stays on screen until
+        // something else forces a redraw. onDismiss is the one callback guaranteed on
+        // every teardown, so clear the darkening here too. Idempotent with the animated
+        // path, which has already set it to zero by the time this runs.
+        mDepthController.updateGlobalDialogVisibility(0 /* visibility */, null /* view */);
     }
 
     /**
