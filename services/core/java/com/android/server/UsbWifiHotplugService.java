@@ -64,6 +64,10 @@ public final class UsbWifiHotplugService extends SystemService {
     // no Wi-Fi or Bluetooth driver this start, so a built-in chip on the USB port is there
     // but can't be used. Both count as missing then, and Wi-Fi isn't started for it.
     private static final String NO_RADIOS = "/sys/module/module/parameters/no_radios";
+    // A Wi-Fi chip wired into the board (device-tree "wireless-wlan" enabled, e.g. the
+    // Ultra's rk915 SDIO chip). Its platform device is created at boot whether or not the
+    // driver is loaded, so unlike a USB dongle or wlan0 it is a reliable at-boot signal.
+    private static final String ONBOARD_WIFI = "/sys/devices/platform/wireless-wlan";
 
     private final Handler mHandler;
     private final Runnable mStartWifi = this::startWifiIfWanted;
@@ -114,8 +118,10 @@ public final class UsbWifiHotplugService extends SystemService {
     @Override
     public void onBootPhase(int phase) {
         if (phase == PHASE_ACTIVITY_MANAGER_READY) {
-            // Before SystemUI starts, so its tiles never show for a missing adapter
-            updatePresence();
+            // Keep the sysfs enumeration and Settings binder writes off the system_server
+            // bootstrap thread; the tiles default to visible, so a slightly later first
+            // write never flashes a hidden tile.
+            mHandler.post(mUpdatePresence);
             mObserver.startObserving("SUBSYSTEM=usb");
             mObserver.startObserving("SUBSYSTEM=net");
             mObserver.startObserving("SUBSYSTEM=bluetooth");
@@ -155,12 +161,26 @@ public final class UsbWifiHotplugService extends SystemService {
         }
         // Or a Wi-Fi interface from anything else (SDIO Wi-Fi on some clones)
         wifi = wifi || hasEntry("/sys/class/net", "wlan");
+        // Or a Wi-Fi chip built into the board (SDIO wifi such as the Ultra's rk915): not a
+        // USB device, and its driver only loads while Wi-Fi is on, so neither the USB scan
+        // nor wlan0 sees it at boot before Wi-Fi is first enabled - which left the tile
+        // hidden with no way to switch Wi-Fi on. Its device-tree node is enabled at boot.
+        wifi = wifi || new File(ONBOARD_WIFI).exists();
         // hciN:M entries are connections, not controllers
         final boolean bt = hasEntry("/sys/class/bluetooth", "hci");
-        Slog.i(TAG, "Adapters: Wi-Fi " + (wifi ? "yes" : "no")
+        Slog.i(TAG, "Adapters detected at boot: Wi-Fi " + (wifi ? "yes" : "no")
                 + ", Bluetooth " + (bt ? "yes" : "no"));
-        Settings.Global.putInt(getContext().getContentResolver(), WIFI_ADAPTER, wifi ? 1 : 0);
-        Settings.Global.putInt(getContext().getContentResolver(), BT_ADAPTER, bt ? 1 : 0);
+        // Never hide a tile on mere boot-time absence. One image serves every board, so
+        // adapter presence is a runtime property we cannot settle at boot: a clone with
+        // onboard Wi-Fi whose driver only loads once Wi-Fi is switched on exposes no
+        // interface and no device-tree marker we recognise yet, and hiding its tile on
+        // that absence deadlocks (can't enable Wi-Fi -> no interface -> tile never
+        // returns). A genuine USB-dongle console instead recovers its tile from the plug
+        // uevent that re-runs this, so staying visible there is only cosmetic. Keep both
+        // tiles available; radiosOff() above still hides on a deliberate Kernel Tweaks
+        // driver-off, which the user reverses from Kernel Tweaks (no deadlock).
+        Settings.Global.putInt(getContext().getContentResolver(), WIFI_ADAPTER, 1);
+        Settings.Global.putInt(getContext().getContentResolver(), BT_ADAPTER, 1);
     }
 
     private static boolean hasEntry(String dir, String prefix) {
