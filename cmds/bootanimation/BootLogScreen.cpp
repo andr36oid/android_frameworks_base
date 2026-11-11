@@ -626,7 +626,76 @@ bool BootAnimation::logScreen() {
 // in, and a bar that moves with it. The animation starts before /data and so before persist.*
 // is there, so andr36oid-bootanim.rc keeps both as marker files on /cache, looked at once.
 // Off, nothing else happens here. On, a few system properties are read 4 times a second.
+// The version line at the bottom edge of the screen. It used to be part of the animation's
+// frames, which are made for 640x480 and sit centered on a larger panel, so it floated
+// above the edge there.
+void BootAnimation::drawVersionLine() {
+    if (mVersionTexture == 0) {
+        if (mVersionWidth < 0) return;
+        mVersionWidth = -1;
+        char version[PROPERTY_VALUE_MAX];
+        property_get("ro.andr36oid.version", version, "");
+        std::string text = "andr36oid - Android 11";
+        if (version[0] != 0) text = text + " - " + version;
+        const int shortSide = std::min(mWidth, mHeight);
+        const int fontSize = std::max(11, shortSide * 11 / 480);
+        sk_sp<SkTypeface> face = SkTypeface::MakeFromFile(kResizeFontFile);
+        if (face == nullptr) face = SkTypeface::MakeDefault();
+        SkFont font(face, fontSize);
+        font.setEdging(SkFont::Edging::kAntiAlias);
+        SkFontMetrics metrics;
+        font.getMetrics(&metrics);
+        const int th = std::max(1, (int)ceilf(metrics.fDescent - metrics.fAscent));
+        const int w = std::min(mWidth, (int)ceilf(font.measureText(text.c_str(), text.size(),
+                SkTextEncoding::kUTF8)) + 2);
+        if (w <= 2) return;
+        SkBitmap bitmap;
+        bitmap.allocPixels(SkImageInfo::Make(w, th, kRGBA_8888_SkColorType, kOpaque_SkAlphaType));
+        SkCanvas canvas(bitmap);
+        canvas.clear(SK_ColorBLACK);
+        SkPaint paint;
+        paint.setAntiAlias(true);
+        paint.setColor(SkColorSetRGB(0x4a, 0x4a, 0x4a));
+        canvas.drawString(text.c_str(), 1, -metrics.fAscent, font, paint);
+
+        bool npot = false;
+        const char* exts = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+        if (exts != nullptr) {
+            npot = strstr(exts, "GL_ARB_texture_non_power_of_two") != nullptr
+                    || strstr(exts, "GL_OES_texture_npot") != nullptr;
+        }
+        int pw = 1 << (31 - __builtin_clz(w));
+        int ph = 1 << (31 - __builtin_clz(th));
+        if (pw < w) pw <<= 1;
+        if (ph < th) ph <<= 1;
+        if (npot) {
+            pw = w;
+            ph = th;
+        }
+        glGenTextures(1, &mVersionTexture);
+        glBindTexture(GL_TEXTURE_2D, mVersionTexture);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, pw, ph, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, th, GL_RGBA, GL_UNSIGNED_BYTE,
+                bitmap.getPixels());
+        GLint crop[4] = { 0, th, w, -th };
+        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_CROP_RECT_OES, crop);
+        mVersionWidth = w;
+        mVersionHeight = th;
+    } else {
+        glBindTexture(GL_TEXTURE_2D, mVersionTexture);
+    }
+    glDisable(GL_SCISSOR_TEST);
+    glDrawTexiOES((mWidth - mVersionWidth) / 2, std::min(mWidth, mHeight) / 80, 0,
+            mVersionWidth, mVersionHeight);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void BootAnimation::drawBootNotes(int x, int y, int w, int h) {
+    drawVersionLine();
     drawStorageWarning(systemTime());
     if (w <= 0 || h <= 0) return;
     if (!mStagesChecked) {
@@ -842,7 +911,10 @@ void BootAnimation::drawStorageWarning(nsecs_t now) {
     if (mShuttingDown) return;
     if (mNotesStart == 0) {
         mNotesStart = now;
-        mStorageWatched = access(kStorageProvenMarker, F_OK) != 0;
+        // Only a real start is watched: when the animation plays again later (the return
+        // from the game system), Android has long been up
+        mStorageWatched = access(kStorageProvenMarker, F_OK) != 0
+                && !property_get_bool("sys.boot_completed", false);
         if (mStorageWatched) gStorageWatch.start();
     }
     if (!mStorageWarned) {
@@ -850,13 +922,14 @@ void BootAnimation::drawStorageWarning(nsecs_t now) {
         const bool wanted = mStorageWatched
                 && (now - mNotesStart >= kStorageSlowBoot || gStorageWatch.found());
         if (!wanted && !property_get_bool("debug.andr36oid.storage_warning", false)) return;
-        const bool slow = !gStorageWatch.found();
         mStorageWarned = true;
-        ALOGW("storage warning shown: %s", slow ? "the start takes over 7 minutes"
-                                                : "/data errors in the log");
+        ALOGW("storage warning shown: %s", !wanted ? "test switch"
+                : gStorageWatch.found() ? "/data errors in the log"
+                : "the start takes over 7 minutes");
     }
     if (mWarnTexture == 0) {
-        const int fontSize = std::max(13, mHeight / 30);
+        // small enough that the box ends above the spinner in the middle of the screen
+        const int fontSize = std::max(11, mHeight / 40);
         const int margin = fontSize / 2;
         const int pad = fontSize * 3 / 4;
         const int border = std::max(2, fontSize / 8);
@@ -900,7 +973,7 @@ void BootAnimation::drawStorageWarning(nsecs_t now) {
         const int titleH = std::max(icon, titleLh * (int)titleLines.size());
         int bh = pad + titleH + pad;
         for (const Row& row : rows) bh += lh + (row.gapBefore ? gap : 0);
-        bh = std::min(bh, mHeight - 2 * margin);
+        bh = std::min(bh, mHeight * 2 / 5);
 
         SkBitmap bitmap;
         bitmap.allocPixels(SkImageInfo::Make(bw, bh, kRGBA_8888_SkColorType, kOpaque_SkAlphaType));
@@ -972,7 +1045,7 @@ void BootAnimation::drawStorageWarning(nsecs_t now) {
     } else {
         glBindTexture(GL_TEXTURE_2D, mWarnTexture);
     }
-    const int margin = std::max(13, mHeight / 30) / 2;
+    const int margin = std::max(11, mHeight / 40) / 2;
     // the animation may have blending or a scissor on for its frame
     const GLboolean blend = glIsEnabled(GL_BLEND);
     const GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);

@@ -186,6 +186,7 @@ private:
     // andr36oid: a warning box in the top left corner when /data doesn't come up or the
     // start takes far too long (BootLogScreen.cpp)
     void drawStorageWarning(nsecs_t now);
+    void drawVersionLine();
     float stageSeconds(int i) const;
     void updateBootStage(nsecs_t now);
     void drawProgressBar(int x, int top, int w, nsecs_t now);
@@ -235,6 +236,9 @@ private:
     GLuint      mWarnTexture = 0;
     int         mWarnWidth = 0;
     int         mWarnHeight = 0;
+    GLuint      mVersionTexture = 0;
+    int         mVersionWidth = 0;
+    int         mVersionHeight = 0;
     std::vector<int> mKeyFds;
     nsecs_t     mLastKeyCheck = 0;
     String8     mZipFileName;
