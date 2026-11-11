@@ -136,14 +136,18 @@ public class VolumeDialogImpl implements VolumeDialog,
             "lineagesecure:" + LineageSettings.Secure.VOLUME_PANEL_ON_LEFT;
 
     private static final long USER_ATTEMPT_GRACE_PERIOD = 1000;
-    private static final int UPDATE_ANIMATION_DURATION = 80;
+    // andr36oid: slider-fill animation runs on every volume keypress; 80ms stutters
+    // when mashing volume under load on RK3326. Halve it so rapid presses stay snappy.
+    private static final int UPDATE_ANIMATION_DURATION = 40;
 
     static final int DIALOG_TIMEOUT_MILLIS = 3000;
     static final int DIALOG_SAFETYWARNING_TIMEOUT_MILLIS = 5000;
     static final int DIALOG_ODI_CAPTIONS_TOOLTIP_TIMEOUT_MILLIS = 5000;
     static final int DIALOG_HOVERING_TIMEOUT_MILLIS = 16000;
-    static final int DIALOG_SHOW_ANIMATION_DURATION = 300;
-    static final int DIALOG_HIDE_ANIMATION_DURATION = 250;
+    // andr36oid: 300/250ms show/hide stretch under load (the deceleration makes the
+    // overlay crawl in when the system is busy). Shorten so it appears promptly.
+    static final int DIALOG_SHOW_ANIMATION_DURATION = 150;
+    static final int DIALOG_HIDE_ANIMATION_DURATION = 120;
 
     private final Context mContext;
     private WindowManager mWindowManager;
