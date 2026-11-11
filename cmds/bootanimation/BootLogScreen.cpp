@@ -36,11 +36,13 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/klog.h>
+#include <sys/prctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <math.h>
 
 #include <algorithm>
+#include <atomic>
 #include <deque>
 #include <mutex>
 #include <string>
@@ -57,6 +59,7 @@
 #include <SkFont.h>
 #include <SkFontMetrics.h>
 #include <SkPaint.h>
+#include <SkPath.h>
 #include <SkTypeface.h>
 
 #include <GLES/gl.h>
@@ -99,6 +102,30 @@ constexpr const char* kMagiskText = "Rebuilding Magisk RAM disk ...";
 constexpr const char* kDataCardProp = "sys.andr36oid.datacard_wait";
 #define DATACARD_TEXT \
         "Waiting for storage SD card ...\nInsert the card with your data. Turning off in %d:%02d"
+// The storage warning (drawStorageWarning). These two lines come from cards that lose what
+// was written to them: userdata mounts, but the directories init just made are gone.
+constexpr const char* kStorageRegex =
+        "Failed to prepare /data/|chdir: /data/misc/credstore: No such file or directory";
+constexpr nsecs_t kStorageSlowBoot = s2ns(7 * 60);
+// Written when the second start has completed (andr36oid-bootanim.rc): from then on the
+// card has proven itself and nothing is watched
+constexpr const char* kStorageProvenMarker = "/cache/andr36oid/booted2";
+constexpr const char* kWarnBoldFontFile = "/system/fonts/Roboto-Bold.ttf";
+constexpr const char* kWarnTitle =
+        "Your SD card may be corrupt, counterfeit or you have a wrong DTB applied.";
+constexpr const char* kWarnBody[] = {
+    "Android is failing to start up. Your SD card may be corrupt, or you have a wrong DTB "
+    "profile applied.",
+    "Please test different DTBs and SD cards. If you have only this card, and no DTB solves "
+    "it, test it with h2testw.",
+};
+constexpr const char* kWarnLast =
+        "The screen turning on does not mean you chose the correct DTB. It just means the "
+        "screen init matches.";
+constexpr SkColor kWarnBoxColor = SkColorSetRGB(0x1c, 0x16, 0x04);
+constexpr SkColor kWarnBorderColor = SkColorSetRGB(0xff, 0xc1, 0x07);
+constexpr SkColor kWarnBodyColor = SkColorSetRGB(0xe6, 0xe6, 0xe6);
+
 constexpr const char* kResizeFontFile = "/system/fonts/Roboto-Regular.ttf";
 constexpr SkColor kResizeColor = SkColorSetRGB(0x8c, 0x8c, 0x8c);
 
@@ -315,6 +342,86 @@ private:
     bool mWarned = false;
 };
 
+// Watches the log for the storage errors: a logcat child that prints only matching lines.
+// It lives as long as the animation does and dies with it.
+class StorageWatch {
+public:
+    void start() {
+        if (mStarted) return;
+        mStarted = true;
+        std::thread([this] { run(); }).detach();
+    }
+
+    bool found() const { return mFound.load(); }
+
+private:
+    void run() {
+        // logd may not be up yet when the animation starts: try again a few times
+        for (int attempt = 0; attempt < 10 && !mFound.load(); attempt++) {
+            if (attempt > 0) sleep(3);
+            int fds[2];
+            if (pipe2(fds, O_CLOEXEC) != 0) continue;
+            const pid_t pid = fork();
+            if (pid < 0) {
+                close(fds[0]);
+                close(fds[1]);
+                continue;
+            }
+            if (pid == 0) {
+                prctl(PR_SET_PDEATHSIG, SIGKILL);
+                dup2(fds[1], STDOUT_FILENO);
+                int null = open("/dev/null", O_WRONLY);
+                if (null >= 0) dup2(null, STDERR_FILENO);
+                execl("/system/bin/logcat", "logcat", "-b", "main,system", "-v", "brief",
+                      "-e", kStorageRegex, nullptr);
+                _exit(127);
+            }
+            close(fds[1]);
+            char buf[512];
+            ssize_t n;
+            while ((n = TEMP_FAILURE_RETRY(read(fds[0], buf, sizeof(buf) - 1))) > 0) {
+                buf[n] = '\0';
+                // "--------- beginning of main" is not a match
+                if (strstr(buf, "/data/") != nullptr) {
+                    ALOGW("storage warning: %.200s", buf);
+                    mFound.store(true);
+                    break;
+                }
+            }
+            close(fds[0]);
+            kill(pid, SIGKILL);
+            waitpid(pid, nullptr, 0);
+        }
+    }
+
+    bool mStarted = false;
+    std::atomic<bool> mFound{false};
+};
+
+StorageWatch gStorageWatch;
+
+// Breaks a paragraph into lines no wider than width
+void wrapWords(const char* text, const SkFont& font, SkScalar width,
+        std::vector<std::string>* out) {
+    std::string line;
+    const char* p = text;
+    while (*p != '\0') {
+        const char* end = strchr(p, ' ');
+        const std::string word = end != nullptr ? std::string(p, end - p) : std::string(p);
+        const std::string tried = line.empty() ? word : line + " " + word;
+        if (!line.empty() && font.measureText(tried.c_str(), tried.size(),
+                SkTextEncoding::kUTF8) > width) {
+            out->push_back(line);
+            line = word;
+        } else {
+            line = tried;
+        }
+        if (end == nullptr) break;
+        p = end + 1;
+    }
+    if (!line.empty()) out->push_back(line);
+}
+
 // Splits a line to the screen width, without cutting a UTF-8 character in two
 void wrap(const LogLine& line, size_t cols, std::deque<LogLine>* out) {
     const std::string& t = line.text;
@@ -520,6 +627,7 @@ bool BootAnimation::logScreen() {
 // is there, so andr36oid-bootanim.rc keeps both as marker files on /cache, looked at once.
 // Off, nothing else happens here. On, a few system properties are read 4 times a second.
 void BootAnimation::drawBootNotes(int x, int y, int w, int h) {
+    drawStorageWarning(systemTime());
     if (w <= 0 || h <= 0) return;
     if (!mStagesChecked) {
         mStagesChecked = true;
@@ -721,6 +829,158 @@ void BootAnimation::drawNoticeLine(const char* text, int x, int top, int w, int 
     }
     glDrawTexiOES(x, mHeight - (top + mResizeHeight), 0, w, mResizeHeight);
     // the animation uploads parts that play once into texture 0
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+// A warning box in the top left corner, on top of the animation, when Android can't use
+// /data (the log says so, see kStorageRegex) or the start has shown the animation for 7
+// minutes. Cards that lose data and a wrong device tree both look like this. The start
+// carries on; the box stays until the animation ends.
+// Only the first two starts are watched: a card or device tree that is wrong shows it
+// there, and later starts don't pay for the log reader.
+void BootAnimation::drawStorageWarning(nsecs_t now) {
+    if (mShuttingDown) return;
+    if (mNotesStart == 0) {
+        mNotesStart = now;
+        mStorageWatched = access(kStorageProvenMarker, F_OK) != 0;
+        if (mStorageWatched) gStorageWatch.start();
+    }
+    if (!mStorageWarned) {
+        // debug.andr36oid.storage_warning=1 shows it for a look at the box
+        const bool wanted = mStorageWatched
+                && (now - mNotesStart >= kStorageSlowBoot || gStorageWatch.found());
+        if (!wanted && !property_get_bool("debug.andr36oid.storage_warning", false)) return;
+        const bool slow = !gStorageWatch.found();
+        mStorageWarned = true;
+        ALOGW("storage warning shown: %s", slow ? "the start takes over 7 minutes"
+                                                : "/data errors in the log");
+    }
+    if (mWarnTexture == 0) {
+        const int fontSize = std::max(13, mHeight / 30);
+        const int margin = fontSize / 2;
+        const int pad = fontSize * 3 / 4;
+        const int border = std::max(2, fontSize / 8);
+        const int bw = std::min(mWidth - 2 * margin, fontSize * 30);
+        if (bw <= 4 * pad) return;
+
+        sk_sp<SkTypeface> face = SkTypeface::MakeFromFile(kResizeFontFile);
+        if (face == nullptr) face = SkTypeface::MakeDefault();
+        sk_sp<SkTypeface> boldFace = SkTypeface::MakeFromFile(kWarnBoldFontFile);
+        if (boldFace == nullptr) boldFace = face;
+        SkFont font(face, fontSize);
+        SkFont bold(boldFace, fontSize);
+        SkFont title(boldFace, fontSize * 9 / 8);
+        font.setEdging(SkFont::Edging::kAntiAlias);
+        bold.setEdging(SkFont::Edging::kAntiAlias);
+        title.setEdging(SkFont::Edging::kAntiAlias);
+        SkFontMetrics metrics;
+        title.getMetrics(&metrics);
+        const int titleLh = std::max(1, (int)ceilf((metrics.fDescent - metrics.fAscent) * 1.2f));
+        const SkScalar titleAscent = metrics.fAscent;
+        font.getMetrics(&metrics);
+        const int lh = std::max(1, (int)ceilf((metrics.fDescent - metrics.fAscent) * 1.25f));
+        const int gap = lh / 2;
+
+        // the title sits right of a warning triangle as high as two of its lines
+        const int icon = titleLh * 3 / 2;
+        const SkScalar textW = bw - 2 * pad;
+        std::vector<std::string> titleLines;
+        wrapWords(kWarnTitle, title, textW - icon - pad / 2, &titleLines);
+        struct Row { std::string text; bool bold; bool gapBefore; };
+        std::vector<Row> rows;
+        for (const char* paragraph : kWarnBody) {
+            std::vector<std::string> lines;
+            wrapWords(paragraph, font, textW, &lines);
+            for (size_t i = 0; i < lines.size(); i++) rows.push_back({lines[i], false, i == 0});
+        }
+        std::vector<std::string> lastLines;
+        wrapWords(kWarnLast, bold, textW, &lastLines);
+        for (size_t i = 0; i < lastLines.size(); i++) rows.push_back({lastLines[i], true, i == 0});
+
+        const int titleH = std::max(icon, titleLh * (int)titleLines.size());
+        int bh = pad + titleH + pad;
+        for (const Row& row : rows) bh += lh + (row.gapBefore ? gap : 0);
+        bh = std::min(bh, mHeight - 2 * margin);
+
+        SkBitmap bitmap;
+        bitmap.allocPixels(SkImageInfo::Make(bw, bh, kRGBA_8888_SkColorType, kOpaque_SkAlphaType));
+        SkCanvas canvas(bitmap);
+        canvas.clear(kWarnBorderColor);
+        SkPaint paint;
+        paint.setAntiAlias(true);
+        paint.setColor(kWarnBoxColor);
+        canvas.drawRect(SkRect::MakeLTRB(border, border, bw - border, bh - border), paint);
+
+        // the triangle with its exclamation mark
+        const SkScalar ix = pad, iy = pad + (titleH - icon) / 2.0f;
+        SkPath triangle;
+        triangle.moveTo(ix + icon / 2.0f, iy);
+        triangle.lineTo(ix + icon, iy + icon * 0.9f);
+        triangle.lineTo(ix, iy + icon * 0.9f);
+        triangle.close();
+        paint.setColor(kWarnBorderColor);
+        canvas.drawPath(triangle, paint);
+        paint.setColor(kWarnBoxColor);
+        const SkScalar barW = icon * 0.1f;
+        canvas.drawRect(SkRect::MakeXYWH(ix + icon / 2.0f - barW / 2, iy + icon * 0.32f, barW,
+                icon * 0.3f), paint);
+        canvas.drawRect(SkRect::MakeXYWH(ix + icon / 2.0f - barW / 2, iy + icon * 0.68f, barW,
+                barW), paint);
+
+        paint.setColor(kWarnBorderColor);
+        SkScalar ty = pad + (titleH - titleLh * (int)titleLines.size()) / 2.0f;
+        for (const std::string& line : titleLines) {
+            canvas.drawString(line.c_str(), pad + icon + pad / 2, ty - titleAscent, title, paint);
+            ty += titleLh;
+        }
+        paint.setColor(kWarnBodyColor);
+        SkScalar yy = pad + titleH + pad / 2.0f;
+        for (const Row& row : rows) {
+            if (row.gapBefore) yy += gap;
+            canvas.drawString(row.text.c_str(), pad, yy - metrics.fAscent,
+                    row.bold ? bold : font, paint);
+            yy += lh;
+        }
+
+        bool npot = false;
+        const char* exts = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+        if (exts != nullptr) {
+            npot = strstr(exts, "GL_ARB_texture_non_power_of_two") != nullptr
+                    || strstr(exts, "GL_OES_texture_npot") != nullptr;
+        }
+        int pw = 1 << (31 - __builtin_clz(bw));
+        int ph = 1 << (31 - __builtin_clz(bh));
+        if (pw < bw) pw <<= 1;
+        if (ph < bh) ph <<= 1;
+        if (npot) {
+            pw = bw;
+            ph = bh;
+        }
+        glGenTextures(1, &mWarnTexture);
+        glBindTexture(GL_TEXTURE_2D, mWarnTexture);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, pw, ph, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bw, bh, GL_RGBA, GL_UNSIGNED_BYTE,
+                bitmap.getPixels());
+        GLint crop[4] = { 0, bh, bw, -bh };
+        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_CROP_RECT_OES, crop);
+        mWarnWidth = bw;
+        mWarnHeight = bh;
+    } else {
+        glBindTexture(GL_TEXTURE_2D, mWarnTexture);
+    }
+    const int margin = std::max(13, mHeight / 30) / 2;
+    // the animation may have blending or a scissor on for its frame
+    const GLboolean blend = glIsEnabled(GL_BLEND);
+    const GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+    if (blend) glDisable(GL_BLEND);
+    if (scissor) glDisable(GL_SCISSOR_TEST);
+    glDrawTexiOES(margin, mHeight - (margin + mWarnHeight), 0, mWarnWidth, mWarnHeight);
+    if (blend) glEnable(GL_BLEND);
+    if (scissor) glEnable(GL_SCISSOR_TEST);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 

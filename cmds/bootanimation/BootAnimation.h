@@ -183,6 +183,9 @@ private:
     // the first start, and, when switched on in Settings, the boot stage and a progress bar
     void drawBootNotes(int x, int y, int w, int h);
     void drawNoticeLine(const char* text, int x, int top, int w, int fontSize);
+    // andr36oid: a warning box in the top left corner when /data doesn't come up or the
+    // start takes far too long (BootLogScreen.cpp)
+    void drawStorageWarning(nsecs_t now);
     float stageSeconds(int i) const;
     void updateBootStage(nsecs_t now);
     void drawProgressBar(int x, int top, int w, nsecs_t now);
@@ -226,6 +229,12 @@ private:
     nsecs_t     mBarDoneAt = 0;
     float       mBarDoneFrom = 0.0f;
     bool        mKeysOpened = false;
+    nsecs_t     mNotesStart = 0;
+    bool        mStorageWatched = false;
+    bool        mStorageWarned = false;
+    GLuint      mWarnTexture = 0;
+    int         mWarnWidth = 0;
+    int         mWarnHeight = 0;
     std::vector<int> mKeyFds;
     nsecs_t     mLastKeyCheck = 0;
     String8     mZipFileName;
