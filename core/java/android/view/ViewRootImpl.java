@@ -6006,12 +6006,147 @@ public final class ViewRootImpl implements ViewParent,
                         return FINISH_HANDLED;
                     }
                 } else {
+                    if (performPageScroll(event)) {
+                        return FINISH_HANDLED;
+                    }
                     if (performFocusNavigation(event)) {
                         return FINISH_HANDLED;
                     }
                 }
             }
             return FORWARD;
+        }
+
+        /**
+         * andr36oid: L2/R2 (and Page Up/Down) that no view or app used scroll the list
+         * under the focus by one page, so long lists (Settings, Files, galleries) do not
+         * need one d-pad press per row. Only reached for keys nobody consumed.
+         */
+        private boolean performPageScroll(KeyEvent event) {
+            final int direction;
+            switch (event.getKeyCode()) {
+                case KeyEvent.KEYCODE_BUTTON_L2:
+                case KeyEvent.KEYCODE_PAGE_UP:
+                    direction = -1;
+                    break;
+                case KeyEvent.KEYCODE_BUTTON_R2:
+                case KeyEvent.KEYCODE_PAGE_DOWN:
+                    direction = 1;
+                    break;
+                default:
+                    return false;
+            }
+            if (!event.hasNoModifiers() || mView == null) {
+                return false;
+            }
+            final View focused = mView.findFocus();
+            // Candidates, innermost first: the lists around the focus, then the largest
+            // scrollable area in the window. canScrollVertically() is only an estimate
+            // (a list nested in a scroll container can claim it and not move), so take
+            // the first candidate that really moves.
+            final ArrayList<View> candidates = new ArrayList<>();
+            for (View v = focused; v != null;) {
+                if (v.canScrollVertically(direction)) {
+                    candidates.add(v);
+                }
+                final ViewParent parent = v.getParent();
+                v = parent instanceof View ? (View) parent : null;
+            }
+            final View largest = findPageScrollTarget(mView, direction, null);
+            if (largest != null && !candidates.contains(largest)) {
+                candidates.add(largest);
+            }
+            View target = null;
+            for (int i = 0; i < candidates.size(); i++) {
+                if (pageScrollBy(candidates.get(i), direction)) {
+                    target = candidates.get(i);
+                    break;
+                }
+            }
+            if (target == null) {
+                return false;
+            }
+            // Keep the focus on screen: an item scrolled out of view would pull the list
+            // straight back on the next d-pad press.
+            if (focused != null && target instanceof ViewGroup && isFullyVisible(focused)) {
+                return true;
+            }
+            if (target instanceof ViewGroup) {
+                final ArrayList<View> focusables = target.getFocusables(View.FOCUS_DOWN);
+                View pick = null;
+                for (int i = 0; i < focusables.size(); i++) {
+                    final View candidate = focusables.get(i);
+                    if (candidate == target || !isFullyVisible(candidate)) {
+                        continue;
+                    }
+                    pick = candidate;
+                    if (direction > 0) {
+                        break;
+                    }
+                }
+                if (pick != null) {
+                    pick.requestFocus(direction > 0 ? View.FOCUS_DOWN : View.FOCUS_UP);
+                }
+            }
+            return true;
+        }
+
+        /** Scrolls one page and reports whether the view really moved. */
+        private boolean pageScrollBy(View target, int direction) {
+            final int page = Math.max(1, (int) ((target.getHeight() - target.getPaddingTop()
+                    - target.getPaddingBottom()) * 0.85f));
+            final long before = pageScrollPosition(target);
+            if (target instanceof android.widget.AbsListView) {
+                ((android.widget.AbsListView) target).scrollListBy(direction * page);
+            } else if (target instanceof android.widget.TextView) {
+                // A plain scrolling view does not clamp scrollBy(); keep the text in range.
+                final int max = Math.max(0, target.computeVerticalScrollRange()
+                        - target.computeVerticalScrollExtent());
+                target.scrollTo(target.getScrollX(),
+                        Math.max(0, Math.min(max, target.getScrollY() + direction * page)));
+            } else {
+                target.scrollBy(0, direction * page);
+            }
+            return pageScrollPosition(target) != before;
+        }
+
+        /** A value that changes whenever the view's content moves vertically. */
+        private long pageScrollPosition(View view) {
+            long position = view.getScrollY() * 31L + view.computeVerticalScrollOffset();
+            if (view instanceof ViewGroup && ((ViewGroup) view).getChildCount() > 0) {
+                final View first = ((ViewGroup) view).getChildAt(0);
+                position = position * 31L + first.getTop() * 31L
+                        + System.identityHashCode(first);
+            }
+            return position;
+        }
+
+        private boolean isFullyVisible(View view) {
+            if (!view.isAttachedToWindow() || !view.isShown()) {
+                return false;
+            }
+            return view.getGlobalVisibleRect(mTempRect)
+                    && mTempRect.height() >= view.getHeight()
+                    && mTempRect.width() >= view.getWidth();
+        }
+
+        /** The largest visible view under root that can still scroll that way. */
+        private View findPageScrollTarget(View root, int direction, View best) {
+            if (root.getVisibility() != View.VISIBLE) {
+                return best;
+            }
+            if (root.canScrollVertically(direction) && root.isShown()
+                    && (best == null || (long) root.getWidth() * root.getHeight()
+                            > (long) best.getWidth() * best.getHeight())) {
+                best = root;
+            }
+            if (root instanceof ViewGroup) {
+                final ViewGroup group = (ViewGroup) root;
+                for (int i = 0; i < group.getChildCount(); i++) {
+                    best = findPageScrollTarget(group.getChildAt(i), direction, best);
+                }
+            }
+            return best;
         }
 
         private int processPointerEvent(QueuedInputEvent q) {
