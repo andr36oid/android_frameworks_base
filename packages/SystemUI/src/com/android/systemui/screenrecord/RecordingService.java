@@ -210,12 +210,23 @@ public class RecordingService extends Service implements MediaRecorder.OnInfoLis
             mController.updateState(true);
             createRecordingNotification();
             mUiEventLogger.log(Events.ScreenRecordEvent.SCREEN_RECORD_START);
-        } catch (IOException | RemoteException | IllegalStateException e) {
+        } catch (IOException | RemoteException | RuntimeException e) {
             Toast.makeText(this,
                     R.string.screenrecord_start_error, Toast.LENGTH_LONG)
                     .show();
             e.printStackTrace();
             mController.updateState(false);
+            // The service was started with startForegroundService(): it must still
+            // enter the foreground once, or ActivityManager kills all of SystemUI a
+            // few seconds after a failed start (encoder error). Then leave cleanly.
+            try {
+                createRecordingNotification();
+            } catch (RuntimeException ignored) {
+            }
+            stopForeground(true);
+            setTapsVisible(mOriginalShowTaps);
+            mRecorder = null;
+            stopSelf();
         }
     }
 
