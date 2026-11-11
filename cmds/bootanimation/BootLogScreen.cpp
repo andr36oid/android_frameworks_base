@@ -88,6 +88,9 @@ constexpr const char* kResizeProp = "sys.andr36oid.resizing";
 constexpr const char* kResizeText = "Resizing SD card ...";      // sys.andr36oid.resizing=1
 constexpr const char* kHotfixProp = "sys.andr36oid.hotfix.applying";
 constexpr const char* kHotfixText = "Applying hotfixes ...";
+constexpr const char* kBootTargetProp = "sys.andr36oid.boottarget";
+// TODO: translate this boot animation notice when localized boot text is supported.
+constexpr const char* kSubsystemBootText = "Booting into dArkOSen ...";
 constexpr const char* kReclaimText = "Cleaning up first boot partitions ..."; // =2
 // =3: the Magisk app was updated, root is rebuilt to match (gameconsole-setup magisk)
 constexpr const char* kMagiskText = "Rebuilding Magisk RAM disk ...";
@@ -551,6 +554,12 @@ void BootAnimation::drawBootNotes(int x, int y, int w, int h) {
             : strcmp(value, "2") == 0 ? kReclaimText
             : strcmp(value, "3") == 0 ? kMagiskText : nullptr;
     if (text == nullptr && property_get_bool(kHotfixProp, false)) text = kHotfixText;
+    // The boot target is determined after the animation starts, so sample it on
+    // each frame. Critical storage/repair notices above retain precedence.
+    if (text == nullptr && !mShuttingDown) {
+        property_get(kBootTargetProp, value, "android");
+        if (strcmp(value, "subsystem") == 0) text = kSubsystemBootText;
+    }
     if (text == nullptr && mStageText && mStage >= 0) text = kStages[mStage].text;
 
     const int top = y + h * 2 / 3 + h / 30;
